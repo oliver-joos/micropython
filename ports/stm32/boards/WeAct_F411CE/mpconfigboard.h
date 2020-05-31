@@ -1,15 +1,53 @@
-// See also https://github.com/mcauser/WEACT_F411CEU6
 
-#define MICROPY_HW_BOARD_NAME       "WeAct_Core"
+#define MICROPY_HW_BOARD_NAME       "WeAct_F411CE"
 #define MICROPY_HW_MCU_NAME         "STM32F411xE"
+#define MICROPY_HW_FLASH_FS_LABEL   "WeAct_F411"    // <= 11 chars, no " ./\ ... (see oofatfs/ff.c)
 
-#define MICROPY_BOARD_EARLY_INIT    WeAct_Core_board_early_init
-void WeAct_Core_board_early_init(void);
+#define MICROPY_HW_WEACT_MAJOR_VERSION  2   // 1 for V1.3, 2 for V2.0, ...
 
 #define MICROPY_HW_HAS_SWITCH       (1)
 #define MICROPY_HW_HAS_FLASH        (1)
 #define MICROPY_HW_ENABLE_RTC       (1)
 #define MICROPY_HW_ENABLE_USB       (1)
+
+// 1 = use internal flash (512 KByte)
+// 0 = use onboard SPI flash (set correct size below!)
+#define MICROPY_HW_ENABLE_INTERNAL_FLASH_STORAGE (0)
+
+#if !MICROPY_HW_ENABLE_INTERNAL_FLASH_STORAGE
+
+// The board ships without SPI flash, but you may add your own!
+// (It supports flash like Winbond W25Q16, W25Q32, W25Q64, W25Q128)
+// #define MICROPY_HW_SPIFLASH_SIZE_BITS (16 * 1024 * 1024) // W25Q16 - 16 Mbit (2 MByte)
+// #define MICROPY_HW_SPIFLASH_SIZE_BITS (32 * 1024 * 1024) // W25Q32 - 32 Mbit (4 MByte)
+// #define MICROPY_HW_SPIFLASH_SIZE_BITS (64 * 1024 * 1024) // W25Q64 - 64 Mbit (8 MByte)
+#define MICROPY_HW_SPIFLASH_SIZE_BITS (128 * 1024 * 1024) // W25Q128 - 128 Mbit (16 MByte)
+
+#define MICROPY_HW_SPIFLASH_CS      (pin_A4)
+#define MICROPY_HW_SPIFLASH_SCK     (pin_A5)
+#define MICROPY_HW_SPIFLASH_MOSI    (pin_A7)
+#if MICROPY_HW_WEACT_MAJOR_VERSION >= 2
+#define MICROPY_HW_SPIFLASH_MISO    (pin_B4)    // WeAct V2.0 uses B4 for SPI flash
+#else
+#define MICROPY_HW_SPIFLASH_MISO    (pin_A6)    // WeAct V1.3 uses A6 for SPI flash
+#endif
+
+#define MICROPY_BOARD_EARLY_INIT    WeAct_F411CE_board_early_init
+void WeAct_F411CE_board_early_init(void);
+
+extern const struct _mp_spiflash_config_t spiflash_config;
+extern struct _spi_bdev_t spi_bdev;
+#define MICROPY_HW_BDEV_IOCTL(op, arg) ( \
+    (op) == BDEV_IOCTL_NUM_BLOCKS ? (MICROPY_HW_SPIFLASH_SIZE_BITS / 8 / FLASH_BLOCK_SIZE) : \
+    (op) == BDEV_IOCTL_INIT ? spi_bdev_ioctl(&spi_bdev, (op), (uint32_t)&spiflash_config) : \
+    spi_bdev_ioctl(&spi_bdev, (op), (arg)) \
+)
+#define MICROPY_HW_BDEV_READBLOCKS(dest, bl, n) spi_bdev_readblocks(&spi_bdev, (dest), (bl), (n))
+#define MICROPY_HW_BDEV_WRITEBLOCKS(src, bl, n) spi_bdev_writeblocks(&spi_bdev, (src), (bl), (n))
+
+#define MICROPY_HW_BDEV_SPIFLASH_EXTENDED (&spi_bdev)   // extended block protocol (e.g. for LittleFS)
+
+#endif  // !MICROPY_HW_ENABLE_INTERNAL_FLASH_STORAGE
 
 // HSE is 8MHz, CPU freq set to 96MHz
 #define MICROPY_HW_CLK_PLLM (25)
@@ -45,8 +83,8 @@ void WeAct_Core_board_early_init(void);
 // SPI busses
 #define MICROPY_HW_SPI1_NSS     (pin_A4)
 #define MICROPY_HW_SPI1_SCK     (pin_A5)
-#define MICROPY_HW_SPI1_MISO    (pin_A6)
 #define MICROPY_HW_SPI1_MOSI    (pin_A7)
+#define MICROPY_HW_SPI1_MISO    (pin_B4)
 
 #define MICROPY_HW_SPI2_NSS     (pin_B12)
 #define MICROPY_HW_SPI2_SCK     (pin_B13)
