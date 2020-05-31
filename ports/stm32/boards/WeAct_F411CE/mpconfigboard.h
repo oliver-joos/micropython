@@ -9,6 +9,9 @@
 #define MICROPY_HW_HAS_FLASH        (1)
 #define MICROPY_HW_ENABLE_RTC       (1)
 #define MICROPY_HW_ENABLE_USB       (1)
+#define MICROPY_HW_ENABLE_SERVO     (1)
+#define MICROPY_HW_ENABLE_SDCARD    (0)
+#define MICROPY_HW_ENABLE_RNG       (0)     // no hardware random gen. available on F401 and F411
 
 // 1 = use internal flash (512 KByte)
 // 0 = use onboard SPI flash (set correct size below!)
@@ -55,6 +58,13 @@ extern struct _spi_bdev_t spi_bdev;
 #define MICROPY_HW_CLK_PLLP (RCC_PLLP_DIV2)
 #define MICROPY_HW_CLK_PLLQ (4)
 
+// The pyboard has a 32kHz crystal for the RTC
+#define MICROPY_HW_RTC_USE_LSE      (1)
+#define MICROPY_HW_RTC_USE_US       (0)
+#define MICROPY_HW_RTC_USE_CALOUT   (1)
+
+#define MICROPY_HW_FLASH_LATENCY    FLASH_LATENCY_3
+
 // USB config
 #define MICROPY_HW_USB_FS              (1)
 // #define MICROPY_HW_USB_VBUS_DETECT_PIN (pin_A9)
@@ -74,9 +84,9 @@ extern struct _spi_bdev_t spi_bdev;
 
 // I2C busses
 #define MICROPY_HW_I2C1_SCL (pin_B6)
-#define MICROPY_HW_I2C1_SDA (pin_B7)
+#define MICROPY_HW_I2C1_SDA (pin_B9)
 #define MICROPY_HW_I2C2_SCL (pin_B10)
-#define MICROPY_HW_I2C2_SDA (pin_B9)
+#define MICROPY_HW_I2C2_SDA (pin_B3)
 #define MICROPY_HW_I2C3_SCL (pin_A8)
 #define MICROPY_HW_I2C3_SDA (pin_B8)
 
