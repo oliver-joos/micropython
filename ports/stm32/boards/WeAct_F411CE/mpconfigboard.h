@@ -3,8 +3,6 @@
 #define MICROPY_HW_MCU_NAME         "STM32F411xE"
 #define MICROPY_HW_FLASH_FS_LABEL   "WeAct_F411"    // <= 11 chars, no " ./\ ... (see oofatfs/ff.c)
 
-#define MICROPY_HW_WEACT_MAJOR_VERSION  2   // 1 for V1.3, 2 for V2.0, ...
-
 #define MICROPY_HW_HAS_SWITCH       (1)
 #define MICROPY_HW_HAS_FLASH        (1)
 #define MICROPY_HW_ENABLE_RTC       (1)
@@ -13,6 +11,8 @@
 #define MICROPY_HW_ENABLE_SDCARD    (0)
 #define MICROPY_HW_ENABLE_RNG       (0)     // no hardware random generator in F401 and F411
 
+// IMPORTANT: lookup version on your WeAct board and set 1 for V1.3, 2 for V2.0, 3 for V3.0
+#define MICROPY_HW_WEACT_MAJOR_VERSION  3
 
 // The board ships without SPI flash, but you may add your own!
 // 1 = Use internal flash (64 of 512 KByte)
@@ -30,10 +30,10 @@
 #define MICROPY_HW_SPIFLASH_CS      (pin_A4)
 #define MICROPY_HW_SPIFLASH_SCK     (pin_A5)
 #define MICROPY_HW_SPIFLASH_MOSI    (pin_A7)
-#if MICROPY_HW_WEACT_MAJOR_VERSION >= 2
+#if MICROPY_HW_WEACT_MAJOR_VERSION == 2
 #define MICROPY_HW_SPIFLASH_MISO    (pin_B4)    // WeAct V2.0 uses B4 for SPI flash
 #else
-#define MICROPY_HW_SPIFLASH_MISO    (pin_A6)    // WeAct V1.3 uses A6 for SPI flash
+#define MICROPY_HW_SPIFLASH_MISO    (pin_A6)    // WeAct V1.3 and V3.0 use A6 for SPI flash
 #endif
 
 #define MICROPY_BOARD_EARLY_INIT    WeAct_F411CE_board_early_init
@@ -94,10 +94,13 @@ extern struct _spi_bdev_t spi_bdev;
 #define MICROPY_HW_I2C3_SDA (pin_B8)
 
 // SPI1 may be used if no SPI flash is mounted
+#if MICROPY_HW_WEACT_MAJOR_VERSION >= 2
+// WeAct V2.0 and later: external SPI flash can use hardware SPI interface
 #define MICROPY_HW_SPI1_NSS     (pin_A4)
 #define MICROPY_HW_SPI1_SCK     (pin_A5)
 #define MICROPY_HW_SPI1_MOSI    (pin_A7)
-#define MICROPY_HW_SPI1_MISO    (pin_B4)
+#define MICROPY_HW_SPI1_MISO    MICROPY_HW_SPIFLASH_MISO
+#endif
 
 // SPI2 may be used if SDCard interface is disabled
 #if !MICROPY_HW_ENABLE_SDCARD
