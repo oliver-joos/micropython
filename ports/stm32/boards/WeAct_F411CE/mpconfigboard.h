@@ -11,21 +11,21 @@
 #define MICROPY_HW_ENABLE_USB       (1)
 #define MICROPY_HW_ENABLE_SERVO     (1)
 #define MICROPY_HW_ENABLE_SDCARD    (0)
-#define MICROPY_HW_ENABLE_RNG       (0)     // no hardware random gen. available on F401 and F411
+#define MICROPY_HW_ENABLE_RNG       (0)     // no hardware random generator in F401 and F411
 
 
+// The board ships without SPI flash, but you may add your own!
 // 1 = Use internal flash (64 of 512 KByte)
 // 0 = Use onboard SPI flash (set correct size below!)
-#define MICROPY_HW_ENABLE_INTERNAL_FLASH_STORAGE (0)
+#define MICROPY_HW_ENABLE_INTERNAL_FLASH_STORAGE (1)
 
 #if !MICROPY_HW_ENABLE_INTERNAL_FLASH_STORAGE
 
-// The board ships without SPI flash, but you may add your own!
-// (It supports flash like Winbond W25Q16, W25Q32, W25Q64, W25Q128)
-// #define MICROPY_HW_SPIFLASH_SIZE_BITS (16 * 1024 * 1024) // W25Q16 - 16 Mbit (2 MByte)
+// MicroPython supports flash like Winbond W25Q16, W25Q32, W25Q64, W25Q128
+#define MICROPY_HW_SPIFLASH_SIZE_BITS (16 * 1024 * 1024) // W25Q16 - 16 Mbit (2 MByte)
 // #define MICROPY_HW_SPIFLASH_SIZE_BITS (32 * 1024 * 1024) // W25Q32 - 32 Mbit (4 MByte)
 // #define MICROPY_HW_SPIFLASH_SIZE_BITS (64 * 1024 * 1024) // W25Q64 - 64 Mbit (8 MByte)
-#define MICROPY_HW_SPIFLASH_SIZE_BITS (128 * 1024 * 1024) // W25Q128 - 128 Mbit (16 MByte)
+// #define MICROPY_HW_SPIFLASH_SIZE_BITS (128 * 1024 * 1024) // W25Q128 - 128 Mbit (16 MByte)
 
 #define MICROPY_HW_SPIFLASH_CS      (pin_A4)
 #define MICROPY_HW_SPIFLASH_SCK     (pin_A5)
