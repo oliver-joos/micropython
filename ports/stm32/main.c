@@ -776,5 +776,6 @@ soft_reset_exit:
 
     gc_sweep_all();
 
+    reset_mode = 1;
     goto soft_reset;
 }
