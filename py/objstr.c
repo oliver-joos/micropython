@@ -111,16 +111,25 @@ void mp_str_print_json(const mp_print_t *print, const byte *str_data, size_t str
 
 STATIC void str_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
     GET_STR_DATA_LEN(self_in, str_data, str_len);
-    #if MICROPY_PY_UJSON
-    if (kind == PRINT_JSON) {
-        mp_str_print_json(print, str_data, str_len);
-        return;
-    }
-    #endif
     #if !MICROPY_PY_BUILTINS_STR_UNICODE
     bool is_bytes = mp_obj_is_type(self_in, &mp_type_bytes);
     #else
     bool is_bytes = true;
+    #endif
+    #if MICROPY_PY_UJSON
+    if (kind == PRINT_JSON) {
+        #if MICROPY_PY_UBINASCII
+        if (is_bytes) {
+            extern mp_obj_t mod_binascii_hexlify(size_t n_args, const mp_obj_t *args);
+            mp_obj_t self_hex = mod_binascii_hexlify(1, &self_in);
+            GET_STR_DATA_LEN(self_hex, hex_data, hex_len);
+            mp_str_print_json(print, hex_data, hex_len);
+            return;
+        }
+        #endif
+        mp_str_print_json(print, str_data, str_len);
+        return;
+    }
     #endif
     if (kind == PRINT_RAW || (!MICROPY_PY_BUILTINS_STR_UNICODE && kind == PRINT_STR && !is_bytes)) {
         mp_printf(print, "%.*s", str_len, str_data);
