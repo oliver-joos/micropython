@@ -4,9 +4,12 @@
 
 #ifdef MICROPY_HW_SPIFLASH_CS
 
+#if MICROPY_HW_SPIFLASH_ENABLE_CACHE
+// Shared cache for first and second SPI block devices
 STATIC mp_spiflash_cache_t spi_bdev_cache;
-spi_bdev_t spi_bdev;
+#endif
 
+spi_bdev_t spi_bdev;
 
 #if MICROPY_HW_WEACT_MAJOR_VERSION >= 2
 // WeAct V2.0 and later: external SPI flashm can use hardware SPI interface
@@ -25,7 +28,9 @@ const mp_spiflash_config_t spiflash_config = {
     .bus.u_spi.cs = MICROPY_HW_SPIFLASH_CS,
     .bus.u_spi.data = (void*)&hard_spi_bus,
     .bus.u_spi.proto = &spi_proto,
+    #if MICROPY_HW_SPIFLASH_ENABLE_CACHE
     .cache = &spi_bdev_cache,
+    #endif
 };
 
 #else
@@ -45,7 +50,9 @@ const mp_spiflash_config_t spiflash_config = {
     .bus.u_spi.cs = MICROPY_HW_SPIFLASH_CS,
     .bus.u_spi.data = (void*)&soft_spi_bus,
     .bus.u_spi.proto = &mp_soft_spi_proto,
+    #if MICROPY_HW_SPIFLASH_ENABLE_CACHE
     .cache = &spi_bdev_cache,
+    #endif
 };
 
 #endif  // MICROPY_HW_WEACT_MAJOR_VERSION
