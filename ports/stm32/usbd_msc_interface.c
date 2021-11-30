@@ -99,10 +99,16 @@ STATIC const int8_t usbd_msc_inquiry_data[36] = {
     0x00, // various flags
     0x00, // various flags
     0x00, // various flags
+/*
     'M', 'i', 'c', 'r', 'o', 'P', 'y', ' ', // Manufacturer : 8 bytes
     'p', 'y', 'b', 'o', 'a', 'r', 'd', ' ', // Product      : 16 Bytes
     'F', 'l', 'a', 's', 'h', ' ', ' ', ' ',
     '1', '.', '0', '0',                     // Version      : 4 Bytes
+*/
+    'S', 'T', 'M', 'i', 'c', 'r', 'o', ' ', // Manufacturer : 8 bytes
+    'U', 'S', 'B', ' ', 'F', 'l', 'a', 's', // Product      : 16 Bytes
+    'h', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+    '1', '.', '0','0',                      // Version      : 4 Bytes
 };
 
 // Set the logical units that will be exposed over MSC
