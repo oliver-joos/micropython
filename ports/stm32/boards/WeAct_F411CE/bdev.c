@@ -1,3 +1,5 @@
+#if !BUILDING_MBOOT
+
 #include "storage.h"
 #include "spi.h"
 
@@ -5,14 +7,11 @@
 #ifdef MICROPY_HW_SPIFLASH_CS
 
 #if MICROPY_HW_SPIFLASH_ENABLE_CACHE
-// Shared cache for first and second SPI block devices
 STATIC mp_spiflash_cache_t spi_bdev_cache;
 #endif
 
-spi_bdev_t spi_bdev;
-
-#if MICROPY_HW_WEACT_MAJOR_VERSION >= 2
-// WeAct V2.0 and later: external SPI flashm can use hardware SPI interface
+#if WEACT_VERSION >= 2
+// WeAct V2.0 and later: external SPI flash can use hardware SPI interface
 
 STATIC const spi_proto_cfg_t hard_spi_bus = {
     .spi = &spi_obj[0],
@@ -34,7 +33,7 @@ const mp_spiflash_config_t spiflash_config = {
 };
 
 #else
-// WeAct V1.3: external SPI flash must use software SPI interface
+// WeAct V1.x: external SPI flash must use software SPI interface
 
 STATIC const mp_soft_spi_obj_t soft_spi_bus = {
     .delay_half = MICROPY_HW_SOFTSPI_MIN_DELAY,
@@ -55,6 +54,10 @@ const mp_spiflash_config_t spiflash_config = {
     #endif
 };
 
-#endif  // MICROPY_HW_WEACT_MAJOR_VERSION
+#endif  // WEACT_VERSION
+
+spi_bdev_t spi_bdev;
 
 #endif  // MICROPY_HW_SPIFLASH_CS
+
+#endif  // !BUILDING_MBOOT
