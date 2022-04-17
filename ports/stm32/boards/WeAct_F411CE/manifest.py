@@ -1,0 +1,6 @@
+include("$(MPY_DIR)/extmod/asyncio")
+require("neopixel")
+require("dht")
+require("onewire")
+# require("lcd160cr")
+# require("ssd1306")
