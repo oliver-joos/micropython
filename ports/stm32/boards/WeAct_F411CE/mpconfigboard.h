@@ -36,9 +36,6 @@
 #define MICROPY_HW_SPIFLASH_MISO    (pin_A6)    // WeAct V1.3 and V3.0 use A6 for SPI flash
 #endif
 
-#define MICROPY_BOARD_EARLY_INIT    WeAct_F411CE_board_early_init
-void WeAct_F411CE_board_early_init(void);
-
 extern const struct _mp_spiflash_config_t spiflash_config;
 extern struct _spi_bdev_t spi_bdev;
 #define MICROPY_HW_SPIFLASH_ENABLE_CACHE (1)
