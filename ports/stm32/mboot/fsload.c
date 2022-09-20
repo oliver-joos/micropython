@@ -160,6 +160,8 @@ static int fsload_program_file(bool write_to_flash) {
             crc = uzlib_crc32(buf, l, crc);
             res = do_write(elem_addr, buf, l, !write_to_flash);
             if (res != 0) {
+                // led_state_all(3);
+                // mp_hal_delay_ms(2000);
                 return res;
             }
             elem_addr += l;
@@ -219,6 +221,8 @@ int fsload_process(void) {
     if (elem == NULL || elem[-1] < 2) {
         return -MBOOT_ERRNO_FSLOAD_NO_FSLOAD;
     }
+    // led_state_all(3);  // yellow
+    // mp_hal_delay_ms(1000);
 
     // Get mount point id and create null-terminated filename
     uint8_t mount_point = elem[0];
@@ -228,10 +232,13 @@ int fsload_process(void) {
     fname[fname_len] = '\0';
 
     elem = ELEM_DATA_START;
+    // uint32_t *debug = (uint32_t *)0x38000070;
     for (;;) {
         elem = elem_search(elem, ELEM_TYPE_MOUNT);
         if (elem == NULL) {
             // End of elements.
+            // led_state_all(2);  // green
+            // mp_hal_delay_ms(1000);
             return -MBOOT_ERRNO_FSLOAD_NO_MOUNT;
         }
         mboot_addr_t base_addr;
@@ -254,6 +261,8 @@ int fsload_process(void) {
         #endif
         } else {
             // Invalid MOUNT element.
+            // led_state_all(4);  // blue
+            // mp_hal_delay_ms(1000);
             return -MBOOT_ERRNO_FSLOAD_INVALID_MOUNT;
         }
         if (elem[0] == mount_point) {
@@ -287,6 +296,10 @@ int fsload_process(void) {
             if (elem[1] == ELEM_MOUNT_LFS2) {
                 ret = vfs_lfs2_mount(&ctx.lfs2, base_addr, byte_len, block_size);
                 methods = &vfs_lfs2_stream_methods;
+                // debug[0] = (uint32_t)elem[1];
+                // debug[1] = (uint32_t)ret;
+                // led_state_all(5);  // purple
+                // mp_hal_delay_ms(1000);
             } else
             #endif
             {

@@ -535,6 +535,12 @@ int hw_page_erase(uint32_t addr, uint32_t *next_addr) {
 
     mboot_state_change(MBOOT_STATE_ERASE_END, ret);
 
+    uint32_t *status_ptr = (uint32_t *)0x38000090;
+    status_ptr[0] = (uint32_t)addr;
+    status_ptr[1] = (uint32_t)0xAAAAAAAA;
+    status_ptr[2] = (uint32_t)0xAAAAAAAA;
+    status_ptr[3] = (uint32_t)ret;
+
     return ret;
 }
 
@@ -618,7 +624,15 @@ void do_read(mboot_addr_t addr, size_t len, uint8_t *buf) {
 
 int do_write(uint32_t addr, const uint8_t *src8, size_t len, bool dry_run) {
     #if MBOOT_ENABLE_PACKING
-    return mboot_pack_write(addr, src8, len, dry_run);
+    int ret = mboot_pack_write(addr, src8, len, dry_run);
+
+    uint32_t *status_ptr = (uint32_t *)0x38000080;
+    status_ptr[0] = (uint32_t)addr;
+    status_ptr[1] = (uint32_t)src8;
+    status_ptr[2] = (uint32_t)len;
+    status_ptr[3] = (uint32_t)ret;
+
+    return ret;
     #else
     if (dry_run) {
         return 0;
@@ -1398,22 +1412,35 @@ enter_bootloader:
     #if MBOOT_ENABLE_PACKING
     mboot_pack_init();
     #endif
+    // led_state_all(4);
+    // mp_hal_delay_ms(1000);
 
     if ((initial_r0 & 0xffffff80) == MBOOT_INITIAL_R0_KEY_FSLOAD) {
         mboot_state_change(MBOOT_STATE_FSLOAD_START, 0);
         int ret = -1;
         #if MBOOT_FSLOAD
         // Application passed through elements, validate then process them
+        memcpy((uint8_t *)0x38000010, ELEM_DATA_START, 0x60);
+        memset((uint8_t *)0x38000070, 0, 0x90);
         const uint8_t *elem_end = elem_search(ELEM_DATA_START, ELEM_TYPE_END);
+        // ((uint8_t*)elem_end)[-1] = '\0';
+        // *status_ptr = (uint32_t)elem_end;
         if (elem_end != NULL && elem_end[-1] == 0) {
+            // led_state_all(3);
+            // mp_hal_delay_ms(500);
             ret = fsload_process();
             // If there is a valid ELEM_TYPE_STATUS element then store the status in the given location.
             const uint8_t *elem_status = elem_search(ELEM_DATA_START, ELEM_TYPE_STATUS);
+            // *status_ptr = (uint32_t)get_le32(&elem_status[0]);
             if (elem_status != NULL && elem_status[-1] == 4) {
-                uint32_t *status_ptr = (uint32_t *)get_le32(&elem_status[0]);
+                // uint32_t *status_ptr = (uint32_t *)get_le32(&elem_status[0]);
+                uint32_t *status_ptr = (uint32_t *)0x38000000;
                 LL_PWR_EnableBkUpAccess(); // In case status_ptr points to backup registers
                 *status_ptr = ret;
             }
+        } else {
+            // led_state_all(5);
+            // mp_hal_delay_ms(500);
         }
         #endif
         mboot_state_change(MBOOT_STATE_FSLOAD_END, ret);

@@ -256,6 +256,8 @@ def update_app_elements(
         machine.mem32[status_addr] = 1
         elems += _create_element(_ELEM_TYPE_STATUS, struct.pack("<L", status_addr))
     elems += _create_element(_ELEM_TYPE_END, b"")
+    elems += b'\0\0\0'  # das letzte 0-Byte vom _ELEM_TYPE_END fehlt sonst!?
+    print(elems)
     return elems
 
 
