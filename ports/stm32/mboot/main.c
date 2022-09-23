@@ -623,22 +623,26 @@ void do_read(mboot_addr_t addr, size_t len, uint8_t *buf) {
 }
 
 int do_write(uint32_t addr, const uint8_t *src8, size_t len, bool dry_run) {
-    #if MBOOT_ENABLE_PACKING
-    int ret = mboot_pack_write(addr, src8, len, dry_run);
-
     uint32_t *status_ptr = (uint32_t *)0x38000080;
     status_ptr[0] = (uint32_t)addr;
     status_ptr[1] = (uint32_t)src8;
     status_ptr[2] = (uint32_t)len;
-    status_ptr[3] = (uint32_t)ret;
 
+    #if MBOOT_ENABLE_PACKING
+    int ret = mboot_pack_write(addr, src8, len, dry_run);
+
+    status_ptr[3] = (uint32_t)ret;
     return ret;
     #else
+    int ret;
     if (dry_run) {
-        return 0;
+        ret = 0;
     } else {
-        return hw_write(addr, src8, len);
+        ret = hw_write(addr, src8, len);
     }
+    
+    status_ptr[3] = (uint32_t)ret;
+    return ret;
     #endif
 }
 

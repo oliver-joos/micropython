@@ -458,7 +458,15 @@ int flash_write(uint32_t flash_dest, const uint32_t *src, uint32_t num_word32) {
     LL_HSEM_ReleaseLock(HSEM, SEMID_FLASH_REGISTERS, 0);
     #endif
 
-    return mp_hal_status_to_neg_errno(status);
+    int ret = mp_hal_status_to_neg_errno(status);
+
+    uint32_t *status_ptr = (uint32_t *)0x380000a0;
+    status_ptr[0] = (uint32_t)flash_dest;
+    status_ptr[1] = (uint32_t)src;
+    status_ptr[2] = (uint32_t)num_word32;
+    status_ptr[3] = (uint32_t)ret;
+
+    return ret;
 }
 
 /*
