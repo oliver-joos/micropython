@@ -158,7 +158,7 @@ static int fsload_program_file(bool write_to_flash) {
                 return -MBOOT_ERRNO_DFU_READ_ERROR;
             }
             crc = uzlib_crc32(buf, l, crc);
-            res = do_write(elem_addr, buf, l, !write_to_flash);
+            res = do_write(elem_addr, buf, sizeof(buf), !write_to_flash);
             if (res != 0) {
                 // led_state_all(3);
                 // mp_hal_delay_ms(2000);
