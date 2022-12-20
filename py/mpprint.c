@@ -511,6 +511,11 @@ int mp_vprintf(const mp_print_t *print, const char *fmt, va_list args) {
                 long_long_arg = true;
             }
             #endif
+        } else if (*fmt == 'h') {
+            ++fmt;
+            if (*fmt == 'h') {
+                ++fmt;
+            }
         }
 
         if (*fmt == '\0') {
