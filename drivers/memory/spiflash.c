@@ -180,29 +180,43 @@ void mp_spiflash_init(mp_spiflash_t *self) {
     // Ensure SPI flash is out of sleep mode
     mp_spiflash_deepsleep_internal(self, 0);
 
-    #if defined(CHECK_DEVID)
-    // Validate device id
+    // Read JEDEC ID:
+    // "ISSI IS25LP256"  = 0x0019609d (ISSI = 0x9d)
+    // "Winbond W25Q256" = 0x001940ef (Winbond = 0xef)
     uint32_t devid;
     int ret = mp_spiflash_read_cmd(self, CMD_RD_DEVID, 3, &devid);
-    if (ret != 0 || devid != CHECK_DEVID) {
+    if (ret != 0) {
         mp_spiflash_release_bus(self);
         return;
     }
-    #endif
 
     if (self->config->bus_kind == MP_SPIFLASH_BUS_QSPI) {
         // Set QE bit
-        uint32_t sr = 0, cr = 0;
-        int ret = mp_spiflash_read_cmd(self, CMD_RDSR, 1, &sr);
-        if (ret == 0) {
-            ret = mp_spiflash_read_cmd(self, CMD_RDCR, 1, &cr);
-        }
-        uint32_t data = (sr & 0xff) | (cr & 0xff) << 8;
-        if (ret == 0 && !(data & (QSPI_QE_MASK << 8))) {
-            data |= QSPI_QE_MASK << 8;
-            mp_spiflash_write_cmd(self, CMD_WREN);
-            mp_spiflash_write_cmd_data(self, CMD_WRSR, 2, data);
-            mp_spiflash_wait_wip0(self);
+        if ((devid & 0xff) == 0x9d) {
+            // Manufacturer ISSI has QE in bit 6 of a 1-byte status register
+            uint32_t sr = 0;
+            int ret = mp_spiflash_read_cmd(self, CMD_RDSR, 1, &sr);
+            uint32_t data = (sr & 0xff);
+            if (ret == 0 && !(data & (1 << 6))) {
+                data |= 1 << 6;
+                mp_spiflash_write_cmd(self, CMD_WREN);
+                mp_spiflash_write_cmd_data(self, CMD_WRSR, 1, data);
+                mp_spiflash_wait_wip0(self);
+            }
+        } else {
+            // MicroPython default writes QE to bit 9 of a 2-byte status register (e.g. Winbond)
+            uint32_t sr = 0, cr = 0;
+            int ret = mp_spiflash_read_cmd(self, CMD_RDSR, 1, &sr);
+            if (ret == 0) {
+                ret = mp_spiflash_read_cmd(self, CMD_RDCR, 1, &cr);
+            }
+            uint32_t data = (sr & 0xff) | (cr & 0xff) << 8;
+            if (ret == 0 && !(data & (QSPI_QE_MASK << 8))) {
+                data |= QSPI_QE_MASK << 8;
+                mp_spiflash_write_cmd(self, CMD_WREN);
+                mp_spiflash_write_cmd_data(self, CMD_WRSR, 2, data);
+                mp_spiflash_wait_wip0(self);
+            }
         }
     }
 
