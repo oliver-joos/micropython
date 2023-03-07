@@ -304,7 +304,9 @@ ifeq ($(MICROPY_PY_NETWORK_CYW43),1)
 CYW43_DIR = lib/cyw43-driver
 GIT_SUBMODULES += $(CYW43_DIR)
 CFLAGS_EXTMOD += -DMICROPY_PY_NETWORK_CYW43=1
-SRC_THIRDPARTY_C += $(addprefix $(CYW43_DIR)/src/,\
+ifeq ($(MICROPY_PY_NETWORK_CYW43_USE_LIB_DRIVER),1)
+CFLAGS_EXTMOD += -DMICROPY_PY_NETWORK_CYW43_USE_LIB_DRIVER=1 -I$(TOP)/lib/cyw43-driver/firmware -I$(TOP)/lib/cyw43-driver/src
+DRIVERS_SRC_C += $(addprefix lib/cyw43-driver/src/,\
 	cyw43_ctrl.c \
 	cyw43_lwip.c \
 	cyw43_ll.c \
@@ -313,6 +315,10 @@ SRC_THIRDPARTY_C += $(addprefix $(CYW43_DIR)/src/,\
 	)
 ifeq ($(MICROPY_PY_BLUETOOTH),1)
 DRIVERS_SRC_C += drivers/cyw43/cywbt.c
+endif
+else
+CFLAGS_EXTMOD += -I$(TOP)/drivers/cyw43
+DRIVERS_SRC_C += drivers/cyw43/cyw43_ctrl.c drivers/cyw43/cyw43_lwip.c
 endif
 
 $(BUILD)/$(CYW43_DIR)/src/cyw43_%.o: CFLAGS += -std=c11

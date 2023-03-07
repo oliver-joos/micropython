@@ -49,7 +49,10 @@
 #include "lwip/init.h"
 #include "lwip/apps/mdns.h"
 #if MICROPY_PY_NETWORK_CYW43
+#if MICROPY_PY_NETWORK_CYW43_USE_LIB_DRIVER
 #include "lib/cyw43-driver/src/cyw43.h"
+#else
+#include "drivers/cyw43/cyw43.h"
 #endif
 #endif
 

@@ -44,8 +44,13 @@
 #include "lwip/apps/mdns.h"
 
 #if MICROPY_PY_NETWORK_CYW43
+#if MICROPY_PY_NETWORK_CYW43_USE_LIB_DRIVER
 #include "extmod/network_cyw43.h"
 #include "lib/cyw43-driver/src/cyw43.h"
+volatile int cyw43_has_pending = 0;
+#else
+#include "drivers/cyw43/cyw43.h"
+#endif
 #endif
 
 // Poll lwIP every 128ms
