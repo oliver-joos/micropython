@@ -68,6 +68,7 @@ void mp_init(void) {
 
     // no pending exceptions to start with
     MP_STATE_THREAD(mp_pending_exception) = MP_OBJ_NULL;
+    MP_STATE_THREAD(nlr_jump_callback_top) = NULL;
     #if MICROPY_ENABLE_SCHEDULER
     // no pending callbacks to start with
     MP_STATE_VM(sched_state) = MP_SCHED_IDLE;
