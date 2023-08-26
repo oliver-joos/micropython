@@ -69,10 +69,9 @@ class Stream:
         while True:
             yield core._io_queue.queue_read(self.s)
             l2 = self.s.readline()  # may do multiple reads but won't block
-            if l2:
-                l += l2
             if l2 is None:
                 continue
+            l += l2
             if not l2 or l[-1] == 10:  # \n (check l in case l2 is str)
                 return l
 
@@ -115,34 +114,26 @@ async def open_connection(host, port, ssl=None, server_hostname=None):
 
     ai = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)[0]  # TODO this is blocking!
     s = socket.socket(ai[0], ai[1], ai[2])
-    if not ssl:
-        s.setblocking(False)
-        ss = Stream(s)
+    s.setblocking(False)
+    ss = Stream(s)
     try:
         s.connect(ai[-1])
     except OSError as er:
         if er.errno != EINPROGRESS:
             raise er
-    if not ssl:
-        yield core._io_queue.queue_write(s)
+    yield core._io_queue.queue_write(s)
     # wrap with SSL, if requested
     if ssl:
         if not _ssl:
             raise ValueError("SSL not supported")
         if ssl is True:
             ssl = _ssl.SSLContext(_ssl.PROTOCOL_TLS_CLIENT)
-            # spec says to use ssl.create_default_context()
-        else:
-            try:
-                assert isinstance(ssl, _ssl.SSLContext)
-            except:
-                raise ValueError("Invalid ssl param")
         if not server_hostname:
             server_hostname = host
-        s = ssl.wrap_socket(s, server_hostname=server_hostname)
+        s = ssl.wrap_socket(s, server_hostname=server_hostname, do_handshake_on_connect=False)
         s.setblocking(False)
-        yield core._io_queue.queue_write(s)
         ss = Stream(s)
+        yield core._io_queue.queue_write(s)
     return ss, ss
 
 
@@ -185,17 +176,16 @@ class Server:
             except:
                 # Ignore a failed accept
                 continue
-            if s2:
-                if ssl and _ssl:
-                    if isinstance(ssl, _ssl.SSLContext):
-                        s2.setblocking(True)
-                        try:
-                            s2 = ssl.wrap_socket(s2, server_side=True)
-                        except OSError as e:
-                            sys.print_exception(e)
-                            s2.close()
-                            continue
+
             s2.setblocking(False)
+            if ssl:
+                try:
+                    s2 = ssl.wrap_socket(s2, server_side=True, do_handshake_on_connect=False)
+                    s2.setblocking(False)
+                except OSError as e:
+                    sys.print_exception(e)
+                    s2.close()
+                    continue
             s2s = Stream(s2, {"peername": addr})
             core.create_task(cb(s2s, s2s))
 

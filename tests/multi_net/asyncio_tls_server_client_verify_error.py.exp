@@ -1,0 +1,9 @@
+--- instance0 ---
+server running
+(-30592, 'MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE')
+
+--- instance1 ---
+write: b'client data'
+
+The certificate Common Name (CN) does not match with the expected CN
+

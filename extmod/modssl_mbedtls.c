@@ -156,6 +156,41 @@ STATIC NORETURN void mbedtls_raise_error(int err) {
     #endif
 }
 
+#ifdef MICROPY_SSL_MBEDTLS_EXTRAS
+STATIC void ssl_handle_handshake_error(mp_obj_ssl_socket_t *sslsock, int *errcode) {
+
+    uint8_t alert = MBEDTLS_SSL_ALERT_MSG_HANDSHAKE_FAILURE;
+    uint32_t flags = 0;
+    uint ret = 0;
+    if (*errcode == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED) {
+
+        // The certificate may have been rejected for several reasons.
+        flags = mbedtls_ssl_get_verify_result(&sslsock->ssl);
+
+    } else if (*errcode == MBEDTLS_ERR_SSL_NO_CLIENT_CERTIFICATE) {
+        /* alert = MBEDTLS_SSL_ALERT_MSG_CERT_REQUIRED; tlsv1.3 */
+
+        mbedtls_ssl_send_alert_message(&sslsock->ssl, MBEDTLS_SSL_ALERT_LEVEL_FATAL,
+            alert);
+    }
+
+    sslsock->sock = MP_OBJ_NULL;
+    mbedtls_ssl_free(&sslsock->ssl);
+
+    if (*errcode == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED) {
+        char xcbuf[512];
+        ret = mbedtls_x509_crt_verify_info(xcbuf, sizeof(xcbuf), "\n", flags);
+        // The length of the string written (not including the terminated nul byte),
+        // or a negative err code.
+        if (ret > 0) {
+            mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("%s"), xcbuf);
+        }
+    }
+
+    mbedtls_raise_error(*errcode);
+}
+#endif
+
 /******************************************************************************/
 // SSLContext type.
 
@@ -563,9 +598,7 @@ cleanup:
         // The length of the string written (not including the terminated nul byte),
         // or a negative err code.
         if (ret > 0) {
-            mp_raise_ValueError(MP_ERROR_TEXT(xcbuf));
-        } else {
-            mbedtls_raise_error(ret);
+            mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("%s"), xcbuf);
         }
     }
     #endif
@@ -635,6 +668,36 @@ STATIC mp_uint_t socket_read(mp_obj_t o_in, void *buf, mp_uint_t size, int *errc
     } else {
         o->last_error = ret;
     }
+
+    if (
+        #if MBEDTLS_VERSION_NUMBER >= 0x03000000
+        (ret < 0) & (mbedtls_ssl_is_handshake_over(&o->ssl) == 0) & (ret != MBEDTLS_ERR_SSL_CONN_EOF)
+        #else
+        (ret < 0) & (ret != MBEDTLS_ERR_SSL_CONN_EOF)
+        #endif
+        ) {
+        // Async handshake is done by mbdetls_ssl_read/write
+        // if return code is MBEDTLS_ERR_XX (i.e < 0) and handshake is not done due to
+        // handshake failure notify peer
+        // with proper error code and raise mp error with mbedtls_raise_error
+
+
+        #ifdef MICROPY_SSL_MBEDTLS_EXTRAS
+        ssl_handle_handshake_error(o, &ret);
+        #else
+
+        if (ret == MBEDTLS_ERR_SSL_NO_CLIENT_CERTIFICATE) {
+            mbedtls_ssl_send_alert_message(&o->ssl, MBEDTLS_SSL_ALERT_LEVEL_FATAL,
+                MBEDTLS_SSL_ALERT_MSG_HANDSHAKE_FAILURE);
+        }
+
+        o->sock = MP_OBJ_NULL;
+        mbedtls_ssl_free(&o->ssl);
+        mbedtls_raise_error(ret);
+        #endif
+
+
+    }
     *errcode = ret;
     return MP_STREAM_ERROR;
 }
@@ -663,6 +726,36 @@ STATIC mp_uint_t socket_write(mp_obj_t o_in, const void *buf, mp_uint_t size, in
     } else {
         o->last_error = ret;
     }
+    if (
+
+        #if MBEDTLS_VERSION_NUMBER >= 0x03000000
+        (ret < 0) & (mbedtls_ssl_is_handshake_over(&o->ssl) == 0) & (ret != MBEDTLS_ERR_SSL_CONN_EOF)
+        #else
+        (ret < 0) & (ret != MBEDTLS_ERR_SSL_CONN_EOF)
+        #endif
+        ) {
+        // Async handshake is done by mbdetls_ssl_read/write
+        // if return code is MBEDTLS_ERR_XX (i.e < 0) and handshake is not done due to
+        // handshake failure notify peer
+        // with proper error code and raise mp error with mbedtls_raise_error
+
+        #ifdef MICROPY_SSL_MBEDTLS_EXTRAS
+        ssl_handle_handshake_error(o, &ret);
+        #else
+
+        if (ret == MBEDTLS_ERR_SSL_NO_CLIENT_CERTIFICATE) {
+            mbedtls_ssl_send_alert_message(&o->ssl, MBEDTLS_SSL_ALERT_LEVEL_FATAL,
+                MBEDTLS_SSL_ALERT_MSG_HANDSHAKE_FAILURE);
+        }
+
+        o->sock = MP_OBJ_NULL;
+        mbedtls_ssl_free(&o->ssl);
+        mbedtls_raise_error(ret);
+        #endif
+
+
+    }
+
     *errcode = ret;
     return MP_STREAM_ERROR;
 }
