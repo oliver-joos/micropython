@@ -1,0 +1,7 @@
+--- instance0 ---
+server running
+(-29824, 'MBEDTLS_ERR_SSL_NO_CLIENT_CERTIFICATE')
+
+--- instance1 ---
+write: b'client data'
+(-30592, 'MBEDTLS_ERR_SSL_FATAL_ALERT_MESSAGE')

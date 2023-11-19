@@ -1,0 +1,20 @@
+--- instance0 ---
+TLS SERVER
+tls server running
+echo: b'client data'
+close
+done
+TCP SERVER
+tcp server running
+NEXT
+echo: b'client data'
+close
+done
+--- instance1 ---
+TLS CLIENT
+write: b'client data'
+read: b'client data'
+NEXT
+TCP CLIENT
+write: b'client data'
+read: b'client data'
