@@ -36,6 +36,8 @@
 #include "py/runtime.h"
 #include "py/stream.h"
 #include "py/objstr.h"
+#include "py/reader.h"
+#include "extmod/vfs.h"
 
 // mbedtls_time_t
 #include "mbedtls/platform.h"
@@ -90,6 +92,39 @@ typedef struct _mp_obj_ssl_socket_t {
 STATIC const mp_obj_type_t ssl_context_type;
 STATIC const mp_obj_type_t ssl_socket_type;
 #ifdef MICROPY_SSL_MBEDTLS_EXTRAS
+
+
+#define MICROPY_READER_VFS_MAX_BUFFER_SIZE (255)
+STATIC mp_obj_t read_file(mp_obj_t self_in) {
+    const mp_stream_p_t *stream_p = mp_get_stream(self_in);
+
+    mp_uint_t total_size = 0;
+    vstr_t vstr;
+    vstr_init(&vstr, MICROPY_READER_VFS_MAX_BUFFER_SIZE);
+    char *p = vstr.buf;
+    mp_uint_t current_read = MICROPY_READER_VFS_MAX_BUFFER_SIZE;
+    while (true) {
+        int error;
+        mp_uint_t out_sz = stream_p->read(self_in, p, current_read, &error);
+        if (out_sz == 0) {
+            break;
+        }
+        total_size += out_sz;
+        if (out_sz < current_read) {
+            current_read -= out_sz;
+            p += out_sz;
+        } else {
+            p = vstr_extend(&vstr, MICROPY_READER_VFS_MAX_BUFFER_SIZE);
+            current_read = MICROPY_READER_VFS_MAX_BUFFER_SIZE;
+        }
+    }
+
+    vstr.len = total_size;
+    /* printf("size: %lu\n", total_size); */
+    return mp_obj_new_bytes_from_vstr(&vstr);
+}
+
+
 STATIC const MP_DEFINE_STR_OBJ(mbedtls_version_obj, MBEDTLS_VERSION_STRING_FULL);
 #endif
 
@@ -384,14 +419,55 @@ STATIC mp_obj_t mod_ssl_load_certchain(size_t n_args, const mp_obj_t *pos_args,
     };
 
     mp_obj_ssl_context_t *self = MP_OBJ_TO_PTR(pos_args[0]);
-    mp_obj_t cert = pos_args[1];
+    mp_obj_t pkey;
+    mp_obj_t cert;
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args - 2, pos_args + 2, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
-    if (cert != mp_const_none) {
-        mp_check_self(mp_obj_is_str_or_bytes(cert));
-        mp_check_self(mp_obj_is_str_or_bytes(args[0].u_obj));
-        ssl_context_load_key(self, args[0].u_obj, cert);
+    if (pos_args[1] != mp_const_none) {
+        mp_check_self(mp_obj_is_str_or_bytes(pos_args[1])); // CERT
+        mp_check_self(mp_obj_is_str_or_bytes(args[0].u_obj)); // KEY
+
+        // check if key is a string/path
+        if (!(mp_obj_is_type(args[0].u_obj, &mp_type_bytes))) {
+
+            /* mp_obj_print(args[0].u_obj, PRINT_REPR); */
+            /* mp_printf(&mp_plat_print, "\n"); */
+            mp_obj_t fk_args[2] = {
+                MP_OBJ_NEW_QSTR(mp_obj_str_get_qstr(args[0].u_obj)),
+                MP_OBJ_NEW_QSTR(MP_QSTR_rb),
+            };
+            mp_obj_t keyf = mp_vfs_open(2, &fk_args[0], (mp_map_t *)&mp_const_empty_map);
+            pkey = read_file(keyf);
+
+        } else {
+
+            pkey = args[0].u_obj;
+        }
+
+
+
+        // check if cert is a string/path
+        if (!(mp_obj_is_type(pos_args[1], &mp_type_bytes))) {
+
+
+            /* mp_obj_print(pos_args[1], PRINT_REPR); */
+            /* mp_printf(&mp_plat_print, "\n"); */
+            mp_obj_t fc_args[2] = {
+                MP_OBJ_NEW_QSTR(mp_obj_str_get_qstr(pos_args[1])),
+                MP_OBJ_NEW_QSTR(MP_QSTR_rb),
+            };
+            mp_obj_t certf = mp_vfs_open(2, &fc_args[0], (mp_map_t *)&mp_const_empty_map);
+            cert = read_file(certf);
+
+
+        } else {
+            cert = pos_args[1];
+        }
+
+
+
+        ssl_context_load_key(self, pkey, cert);
     }
     return mp_const_none;
 }
@@ -417,6 +493,7 @@ STATIC mp_obj_t mod_ssl_load_cadata(size_t n_args, const mp_obj_t *pos_args,
     mp_map_t *kw_args) {
 
     static const mp_arg_t allowed_args[] = {
+        { MP_QSTR_cafile, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
         { MP_QSTR_cadata, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
     };
 
@@ -424,9 +501,33 @@ STATIC mp_obj_t mod_ssl_load_cadata(size_t n_args, const mp_obj_t *pos_args,
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
+    // cafile
     if (args[0].u_obj != mp_const_none) {
         mp_check_self(mp_obj_is_str_or_bytes(args[0].u_obj));
-        ssl_context_load_cadata(self, args[0].u_obj);
+        mp_obj_t cadata;
+
+        if (!(mp_obj_is_type(args[0].u_obj, &mp_type_bytes))) {
+
+
+            /* mp_obj_print(pos_args[1], PRINT_REPR); */
+            /* mp_printf(&mp_plat_print, "\n"); */
+            mp_obj_t fca_args[2] = {
+                MP_OBJ_NEW_QSTR(mp_obj_str_get_qstr(args[0].u_obj)),
+                MP_OBJ_NEW_QSTR(MP_QSTR_rb),
+            };
+            mp_obj_t ca_file = mp_vfs_open(2, &fca_args[0], (mp_map_t *)&mp_const_empty_map);
+            cadata = read_file(ca_file);
+
+
+            ssl_context_load_cadata(self, cadata);
+        }
+
+    }
+    // cadata
+    else if (args[1].u_obj != mp_const_none) {
+
+        mp_check_self(mp_obj_is_str_or_bytes(args[1].u_obj));
+        ssl_context_load_cadata(self, args[1].u_obj);
     }
     return mp_const_none;
 }
