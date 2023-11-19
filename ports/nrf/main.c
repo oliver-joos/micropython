@@ -38,6 +38,7 @@
 #include "py/stackctrl.h"
 #include "py/gc.h"
 #include "py/compile.h"
+#include "extmod/modmachine.h"
 #include "shared/runtime/pyexec.h"
 #include "readline.h"
 #include "gccollect.h"
@@ -263,8 +264,10 @@ soft_reset:
 
     #if MICROPY_VFS || MICROPY_MBFS || MICROPY_MODULE_FROZEN
     // run boot.py and main.py if they exist.
-    pyexec_file_if_exists("boot.py");
-    pyexec_file_if_exists("main.py");
+    ret = pyexec_file_if_exists("boot.py");
+    if (pyexec_mode_kind == PYEXEC_MODE_FRIENDLY_REPL && ret != 0) {
+        pyexec_file_if_exists("main.py");
+    }
     #endif
 
     for (;;) {
@@ -300,8 +303,8 @@ soft_reset:
 #if !MICROPY_VFS
 #if MICROPY_MBFS
 // Use micro:bit filesystem
-mp_lexer_t *mp_lexer_new_from_file(const char *filename) {
-    return os_mbfs_new_reader(filename);
+mp_lexer_t *mp_lexer_new_from_file(qstr filename) {
+    return os_mbfs_new_reader(qstr_str(filename));
 }
 
 mp_import_stat_t mp_import_stat(const char *path) {
@@ -315,7 +318,7 @@ MP_DEFINE_CONST_FUN_OBJ_KW(mp_builtin_open_obj, 1, mp_builtin_open);
 
 #else
 // use dummy functions - no filesystem available
-mp_lexer_t *mp_lexer_new_from_file(const char *filename) {
+mp_lexer_t *mp_lexer_new_from_file(qstr filename) {
     mp_raise_OSError(MP_ENOENT);
 }
 

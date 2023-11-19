@@ -2,8 +2,11 @@
 # and provides rules to build 3rd-party components for extmod modules.
 
 SRC_EXTMOD_C += \
+	extmod/machine_adc.c \
+	extmod/machine_adc_block.c \
 	extmod/machine_bitstream.c \
 	extmod/machine_i2c.c \
+	extmod/machine_i2s.c \
 	extmod/machine_mem.c \
 	extmod/machine_pinbase.c \
 	extmod/machine_pulse.c \
@@ -11,6 +14,8 @@ SRC_EXTMOD_C += \
 	extmod/machine_signal.c \
 	extmod/machine_spi.c \
 	extmod/machine_timer.c \
+	extmod/machine_uart.c \
+	extmod/machine_wdt.c \
 	extmod/modasyncio.c \
 	extmod/modbinascii.c \
 	extmod/modbluetooth.c \
@@ -102,7 +107,7 @@ SRC_THIRDPARTY_C += $(addprefix $(LITTLEFS_DIR)/,\
 	lfs2_util.c \
 	)
 
-$(BUILD)/$(LITTLEFS_DIR)/lfs2.o: CFLAGS += -Wno-missing-field-initializers
+$(BUILD)/$(LITTLEFS_DIR)/lfs2.o: CFLAGS += -Wno-shadow
 endif
 
 ################################################################################
@@ -262,6 +267,9 @@ SRC_THIRDPARTY_C += $(addprefix $(LWIP_DIR)/,\
 	core/ipv6/nd6.c \
 	netif/ethernet.c \
 	)
+ifeq ($(MICROPY_PY_LWIP_LOOPBACK),1)
+CFLAGS_EXTMOD += -DLWIP_NETIF_LOOPBACK=1
+endif
 ifeq ($(MICROPY_PY_LWIP_SLIP),1)
 CFLAGS_EXTMOD += -DMICROPY_PY_LWIP_SLIP=1
 SRC_THIRDPARTY_C += $(LWIP_DIR)/netif/slipif.c

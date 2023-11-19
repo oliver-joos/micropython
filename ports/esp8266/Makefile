@@ -78,8 +78,8 @@ LD_FILES ?= boards/esp8266_2m.ld
 LDFLAGS += -nostdlib -T $(LD_FILES) -Map=$(@:.elf=.map) --cref
 LIBS += -L$(ESP_SDK)/lib -lmain -ljson -llwip_open -lpp -lnet80211 -lwpa -lphy -lnet80211
 
-ifeq ($(MICROPY_ESPNOW),1)
-CFLAGS += -DMICROPY_ESPNOW=1
+ifeq ($(MICROPY_PY_ESPNOW),1)
+CFLAGS += -DMICROPY_PY_ESPNOW=1
 LIBS += -lespnow
 endif
 
@@ -114,9 +114,6 @@ SRC_C = \
 	machine_bitstream.c \
 	machine_pin.c \
 	machine_rtc.c \
-	machine_adc.c \
-	machine_uart.c \
-	machine_wdt.c \
 	machine_hspi.c \
 	modesp.c \
 	network_wlan.c \
@@ -126,7 +123,7 @@ SRC_C = \
 	hspi.c \
 	$(wildcard $(BOARD_DIR)/*.c) \
 
-ifeq ($(MICROPY_ESPNOW),1)
+ifeq ($(MICROPY_PY_ESPNOW),1)
 SRC_C += \
 	modespnow.c
 endif
@@ -190,8 +187,6 @@ OBJ += $(addprefix $(BUILD)/, $(DRIVERS_SRC_C:.c=.o))
 
 # List of sources for qstr extraction
 SRC_QSTR += $(SRC_C) $(SHARED_SRC_C)
-# Append any auto-generated sources that are needed by sources listed in SRC_QSTR
-SRC_QSTR_AUTO_DEPS +=
 
 all: $(FWBIN)
 
