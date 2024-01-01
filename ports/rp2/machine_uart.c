@@ -40,6 +40,14 @@
 #define DEFAULT_UART_BITS (8)
 #define DEFAULT_UART_STOP (1)
 
+#ifdef MICROPY_HW_UART_NO_DEFAULT_PINS
+// With no default I2C, need to require the pin args.
+#define MICROPY_UART_PINS_ARG_OPTS MP_ARG_REQUIRED
+#else
+// Most boards do not require pin args.
+#define MICROPY_UART_PINS_ARG_OPTS 0
+#endif
+
 // UART 0 default pins
 #if !defined(MICROPY_HW_UART0_TX)
 #define MICROPY_HW_UART0_TX (0)
@@ -225,8 +233,8 @@ STATIC void mp_machine_uart_init_helper(machine_uart_obj_t *self, size_t n_args,
         { MP_QSTR_bits, MP_ARG_INT, {.u_int = -1} },
         { MP_QSTR_parity, MP_ARG_OBJ, {.u_rom_obj = MP_ROM_INT(-1)} },
         { MP_QSTR_stop, MP_ARG_INT, {.u_int = -1} },
-        { MP_QSTR_tx, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
-        { MP_QSTR_rx, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
+        { MP_QSTR_tx, MICROPY_UART_PINS_ARG_OPTS | MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
+        { MP_QSTR_rx, MICROPY_UART_PINS_ARG_OPTS | MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
         { MP_QSTR_cts, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
         { MP_QSTR_rts, MP_ARG_KW_ONLY | MP_ARG_OBJ, {.u_rom_obj = MP_ROM_NONE} },
         { MP_QSTR_timeout, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = -1} },
@@ -454,8 +462,8 @@ STATIC void mp_machine_uart_sendbreak(machine_uart_obj_t *self) {
 
 STATIC mp_uint_t mp_machine_uart_read(mp_obj_t self_in, void *buf_in, mp_uint_t size, int *errcode) {
     machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    uint64_t t = time_us_64() + (uint64_t)self->timeout * 1000;
-    uint64_t timeout_char_us = (uint64_t)self->timeout_char * 1000;
+    mp_uint_t start = mp_hal_ticks_ms();
+    mp_uint_t timeout = self->timeout;
     uint8_t *dest = buf_in;
 
     for (size_t i = 0; i < size; i++) {
@@ -466,7 +474,8 @@ STATIC mp_uint_t mp_machine_uart_read(mp_obj_t self_in, void *buf_in, mp_uint_t 
                 uart_drain_rx_fifo(self);
                 break;
             }
-            if (time_us_64() > t) {  // timed out
+            mp_uint_t elapsed = mp_hal_ticks_ms() - start;
+            if (elapsed > timeout) {  // timed out
                 if (i <= 0) {
                     *errcode = MP_EAGAIN;
                     return MP_STREAM_ERROR;
@@ -474,18 +483,19 @@ STATIC mp_uint_t mp_machine_uart_read(mp_obj_t self_in, void *buf_in, mp_uint_t 
                     return i;
                 }
             }
-            MICROPY_EVENT_POLL_HOOK
+            mp_event_wait_ms(timeout - elapsed);
         }
         *dest++ = ringbuf_get(&(self->read_buffer));
-        t = time_us_64() + timeout_char_us;
+        start = mp_hal_ticks_ms(); // Inter-character timeout
+        timeout = self->timeout_char;
     }
     return size;
 }
 
 STATIC mp_uint_t mp_machine_uart_write(mp_obj_t self_in, const void *buf_in, mp_uint_t size, int *errcode) {
     machine_uart_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    uint64_t t = time_us_64() + (uint64_t)self->timeout * 1000;
-    uint64_t timeout_char_us = (uint64_t)self->timeout_char * 1000;
+    mp_uint_t start = mp_hal_ticks_ms();
+    mp_uint_t timeout = self->timeout;
     const uint8_t *src = buf_in;
     size_t i = 0;
 
@@ -502,7 +512,8 @@ STATIC mp_uint_t mp_machine_uart_write(mp_obj_t self_in, const void *buf_in, mp_
     while (i < size) {
         // Wait for the first/next character to be sent.
         while (ringbuf_free(&(self->write_buffer)) == 0) {
-            if (time_us_64() > t) {  // timed out
+            mp_uint_t elapsed = mp_hal_ticks_ms() - start;
+            if (elapsed > timeout) {  // timed out
                 if (i <= 0) {
                     *errcode = MP_EAGAIN;
                     return MP_STREAM_ERROR;
@@ -510,11 +521,12 @@ STATIC mp_uint_t mp_machine_uart_write(mp_obj_t self_in, const void *buf_in, mp_
                     return i;
                 }
             }
-            MICROPY_EVENT_POLL_HOOK
+            mp_event_wait_ms(timeout - elapsed);
         }
         ringbuf_put(&(self->write_buffer), *src++);
         ++i;
-        t = time_us_64() + timeout_char_us;
+        start = mp_hal_ticks_ms(); // Inter-character timeout
+        timeout = self->timeout_char;
         uart_fill_tx_fifo(self);
     }
 
@@ -539,12 +551,16 @@ STATIC mp_uint_t mp_machine_uart_ioctl(mp_obj_t self_in, mp_uint_t request, uint
         // Take the worst case assumptions at 13 bit symbol size times 2.
         uint64_t timeout = time_us_64() +
             (uint64_t)(33 + self->write_buffer.size) * 13000000ll * 2 / self->baudrate;
-        do {
+        while (1) {
             if (mp_machine_uart_txdone(self)) {
                 return 0;
             }
-            MICROPY_EVENT_POLL_HOOK
-        } while (time_us_64() < timeout);
+            uint64_t now = time_us_64();
+            if (now >= timeout) {
+                break;
+            }
+            mp_event_wait_ms((timeout - now) / 1000);
+        }
         *errcode = MP_ETIMEDOUT;
         ret = MP_STREAM_ERROR;
     } else {

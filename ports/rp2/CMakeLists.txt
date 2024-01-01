@@ -102,6 +102,7 @@ set(MICROPY_SOURCE_LIB
     ${MICROPY_DIR}/shared/runtime/mpirq.c
     ${MICROPY_DIR}/shared/runtime/pyexec.c
     ${MICROPY_DIR}/shared/runtime/stdout_helpers.c
+    ${MICROPY_DIR}/shared/runtime/softtimer.c
     ${MICROPY_DIR}/shared/runtime/sys_stdio_mphal.c
     ${MICROPY_DIR}/shared/timeutils/timeutils.c
     ${MICROPY_DIR}/shared/tinyusb/mp_cdc_common.c
@@ -124,7 +125,6 @@ set(MICROPY_SOURCE_PORT
     machine_spi.c
     machine_timer.c
     main.c
-    modmachine.c
     modrp2.c
     mphalport.c
     mpnetworkport.c
@@ -132,6 +132,7 @@ set(MICROPY_SOURCE_PORT
     pendsv.c
     rp2_flash.c
     rp2_pio.c
+    rp2_dma.c
     uart.c
     usbd.c
     msc_disk.c
@@ -152,11 +153,11 @@ set(MICROPY_SOURCE_QSTR
     ${MICROPY_PORT_DIR}/machine_timer.c
     ${MICROPY_PORT_DIR}/machine_uart.c
     ${MICROPY_PORT_DIR}/machine_wdt.c
-    ${MICROPY_PORT_DIR}/modmachine.c
     ${MICROPY_PORT_DIR}/modrp2.c
     ${MICROPY_PORT_DIR}/modos.c
     ${MICROPY_PORT_DIR}/rp2_flash.c
     ${MICROPY_PORT_DIR}/rp2_pio.c
+    ${MICROPY_PORT_DIR}/rp2_dma.c
     ${CMAKE_BINARY_DIR}/pins_${MICROPY_BOARD}.c
 )
 
@@ -196,6 +197,48 @@ set(PICO_SDK_COMPONENTS
     tinyusb_common
     tinyusb_device
 )
+
+# Use our custom pico_float_micropython float implementation.  This is needed for two reasons:
+# - to fix inf handling in pico-sdk's __wrap___aeabi_fadd();
+# - so we can use our own libm functions, to fix inaccuracies in the pico-sdk versions.
+pico_set_float_implementation(${MICROPY_TARGET} micropython)
+
+# Define our custom pico_float_micropython component.
+pico_add_library(pico_float_micropython)
+
+# pico_float_micropython: add pico-sdk float and our libm source files.
+target_sources(pico_float_micropython INTERFACE
+    ${PICO_SDK_PATH}/src/rp2_common/pico_float/float_aeabi.S
+    ${PICO_SDK_PATH}/src/rp2_common/pico_float/float_init_rom.c
+    ${PICO_SDK_PATH}/src/rp2_common/pico_float/float_v1_rom_shim.S
+    ${MICROPY_SOURCE_LIB_LIBM}
+    ${MICROPY_SOURCE_LIB_LIBM_SQRT_SW}
+    ${MICROPY_PORT_DIR}/libm_extra.c
+)
+
+# pico_float_micropython: wrap low-level floating-point ops, to call the pico-sdk versions.
+pico_wrap_function(pico_float_micropython __aeabi_fdiv)
+pico_wrap_function(pico_float_micropython __aeabi_fmul)
+pico_wrap_function(pico_float_micropython __aeabi_frsub)
+pico_wrap_function(pico_float_micropython __aeabi_fsub)
+pico_wrap_function(pico_float_micropython __aeabi_cfcmpeq)
+pico_wrap_function(pico_float_micropython __aeabi_cfrcmple)
+pico_wrap_function(pico_float_micropython __aeabi_cfcmple)
+pico_wrap_function(pico_float_micropython __aeabi_fcmpeq)
+pico_wrap_function(pico_float_micropython __aeabi_fcmplt)
+pico_wrap_function(pico_float_micropython __aeabi_fcmple)
+pico_wrap_function(pico_float_micropython __aeabi_fcmpge)
+pico_wrap_function(pico_float_micropython __aeabi_fcmpgt)
+pico_wrap_function(pico_float_micropython __aeabi_fcmpun)
+pico_wrap_function(pico_float_micropython __aeabi_i2f)
+pico_wrap_function(pico_float_micropython __aeabi_l2f)
+pico_wrap_function(pico_float_micropython __aeabi_ui2f)
+pico_wrap_function(pico_float_micropython __aeabi_ul2f)
+pico_wrap_function(pico_float_micropython __aeabi_f2iz)
+pico_wrap_function(pico_float_micropython __aeabi_f2lz)
+pico_wrap_function(pico_float_micropython __aeabi_f2uiz)
+pico_wrap_function(pico_float_micropython __aeabi_f2ulz)
+pico_wrap_function(pico_float_micropython __aeabi_f2d)
 
 if (MICROPY_PY_LWIP)
     target_link_libraries(${MICROPY_TARGET} micropy_lib_lwip)
