@@ -1,7 +1,10 @@
 // url: https://www.waveshare.com/product/rp2040-zero.htm
 // wiki: http://www.waveshare.com/wiki/RP2040-Zero
 
-#define MICROPY_HW_BOARD_NAME "Waveshare RP2040-Zero"
+#define MICROPY_HW_BOARD_NAME "RP2040-Zero"
+
+// Enable USB Mass Storage with FatFS filesystem.
+#define MICROPY_HW_USB_MSC (1)
 
 #define MICROPY_HW_USB_VID (0x2E8A)
 #define MICROPY_HW_USB_PID (0x101F)
