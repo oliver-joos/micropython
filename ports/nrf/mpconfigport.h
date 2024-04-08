@@ -174,6 +174,7 @@
 #define MICROPY_PY_TIME             (1)
 #define MICROPY_PY_MACHINE          (1)
 #define MICROPY_PY_MACHINE_INCLUDEFILE "ports/nrf/modules/machine/modmachine.c"
+#define MICROPY_PY_MACHINE_RESET    (1)
 #define MICROPY_PY_MACHINE_BARE_METAL_FUNCS (1)
 #define MICROPY_PY_MACHINE_BOOTLOADER (1)
 #define MICROPY_PY_MACHINE_PULSE    (0)
@@ -281,7 +282,6 @@
 #define MICROPY_PY_SYS                        (1)
 #define MICROPY_PY_SYS_PATH_ARGV_DEFAULTS     (1)
 #define MICROPY_PY___FILE__                   (1)
-#define MICROPY_QSTR_BYTES_IN_HASH            (2)
 #endif
 
 #ifndef MICROPY_PY_UBLUEPY
