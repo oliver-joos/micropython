@@ -350,7 +350,7 @@ static void ssl_context_load_key(mp_obj_ssl_context_t *self, mp_obj_t key_obj, m
     // len should include terminating null
     int ret;
     #if MBEDTLS_VERSION_NUMBER >= 0x03000000
-    ret = mbedtls_pk_parse_key(&self->pkey, key, key_len + 1, NULL, 0, mbedtls_ctr_drbg_random, &self->ctr_drbg);
+    ret = mbedtls_pk_parse_key(&self->pkey, key, key_len, NULL, 0, mbedtls_ctr_drbg_random, &self->ctr_drbg);
     #else
     ret = mbedtls_pk_parse_key(&self->pkey, key, key_len + 1, NULL, 0);
     #endif
