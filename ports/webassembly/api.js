@@ -38,7 +38,7 @@ export async function loadMicroPython(options) {
         { heapsize: 1024 * 1024, linebuffer: true },
         options,
     );
-    const Module = {};
+    let Module = {};
     Module.locateFile = (path, scriptDirectory) =>
         url || scriptDirectory + path;
     Module._textDecoder = new TextDecoder();
@@ -83,11 +83,7 @@ export async function loadMicroPython(options) {
             Module.stderr = (c) => stderr(new Uint8Array([c]));
         }
     }
-    const moduleLoaded = new Promise((r) => {
-        Module.postRun = r;
-    });
-    _createMicroPythonModule(Module);
-    await moduleLoaded;
+    Module = await _createMicroPythonModule(Module);
     globalThis.Module = Module;
     proxy_js_init();
     const pyimport = (name) => {
@@ -131,24 +127,36 @@ export async function loadMicroPython(options) {
         },
         pyimport: pyimport,
         runPython(code) {
+            const len = Module.lengthBytesUTF8(code);
+            const buf = Module._malloc(len + 1);
+            Module.stringToUTF8(code, buf, len + 1);
             const value = Module._malloc(3 * 4);
             Module.ccall(
                 "mp_js_do_exec",
                 "number",
-                ["string", "pointer"],
-                [code, value],
+                ["pointer", "number", "pointer"],
+                [buf, len, value],
             );
+            Module._free(buf);
             return proxy_convert_mp_to_js_obj_jsside_with_free(value);
         },
         runPythonAsync(code) {
+            const len = Module.lengthBytesUTF8(code);
+            const buf = Module._malloc(len + 1);
+            Module.stringToUTF8(code, buf, len + 1);
             const value = Module._malloc(3 * 4);
             Module.ccall(
                 "mp_js_do_exec_async",
                 "number",
-                ["string", "pointer"],
-                [code, value],
+                ["pointer", "number", "pointer"],
+                [buf, len, value],
             );
-            return proxy_convert_mp_to_js_obj_jsside_with_free(value);
+            Module._free(buf);
+            const ret = proxy_convert_mp_to_js_obj_jsside_with_free(value);
+            if (ret instanceof PyProxyThenable) {
+                return Promise.resolve(ret);
+            }
+            return ret;
         },
         replInit() {
             Module.ccall("mp_js_repl_init", "null", ["null"]);
@@ -224,6 +232,16 @@ async function runCLI() {
             }
         });
     } else {
+        // If the script to run ends with a running of the asyncio main loop, then inject
+        // a simple `asyncio.run` hook that starts the main task.  This is primarily to
+        // support running the standard asyncio tests.
+        if (contents.endsWith("asyncio.run(main())\n")) {
+            const asyncio = mp.pyimport("asyncio");
+            asyncio.run = async (task) => {
+                await asyncio.create_task(task);
+            };
+        }
+
         try {
             mp.runPython(contents);
         } catch (error) {
@@ -248,7 +266,7 @@ if (
     typeof process.versions === "object" &&
     typeof process.versions.node === "string"
 ) {
-    // Check if this module is ron from the command line.
+    // Check if this module is run from the command line via `node micropython.mjs`.
     //
     // See https://stackoverflow.com/questions/6398196/detect-if-called-through-require-or-directly-by-command-line/66309132#66309132
     //
@@ -256,14 +274,17 @@ if (
     // - `resolve()` is used to handle symlinks
     // - `includes()` is used to handle cases where the file extension was omitted when passed to node
 
-    const path = await import("path");
-    const url = await import("url");
+    if (process.argv.length > 1) {
+        const path = await import("path");
+        const url = await import("url");
 
-    const pathToThisFile = path.resolve(url.fileURLToPath(import.meta.url));
-    const pathPassedToNode = path.resolve(process.argv[1]);
-    const isThisFileBeingRunViaCLI = pathToThisFile.includes(pathPassedToNode);
+        const pathToThisFile = path.resolve(url.fileURLToPath(import.meta.url));
+        const pathPassedToNode = path.resolve(process.argv[1]);
+        const isThisFileBeingRunViaCLI =
+            pathToThisFile.includes(pathPassedToNode);
 
-    if (isThisFileBeingRunViaCLI) {
-        runCLI();
+        if (isThisFileBeingRunViaCLI) {
+            runCLI();
+        }
     }
 }

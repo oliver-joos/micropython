@@ -147,7 +147,7 @@ EM_JS(void, js_reflect_construct, (int f_ref, uint32_t n_args, uint32_t * args, 
     const f = proxy_js_ref[f_ref];
     const as = [];
     for (let i = 0; i < n_args; ++i) {
-        as.push(proxy_convert_mp_to_js_obj_jsside(args + i * 4));
+        as.push(proxy_convert_mp_to_js_obj_jsside(args + i * 3 * 4));
     }
     const ret = Reflect.construct(f, as);
     proxy_convert_js_to_mp_obj_jsside(ret, out);
@@ -234,6 +234,22 @@ static mp_obj_t jsproxy_call(mp_obj_t self_in, size_t n_args, size_t n_kw, const
     }
 }
 
+EM_JS(void, proxy_js_free_obj, (int js_ref), {
+    if (js_ref >= PROXY_JS_REF_NUM_STATIC) {
+        proxy_js_ref[js_ref] = undefined;
+        if (js_ref < proxy_js_ref_next) {
+            proxy_js_ref_next = js_ref;
+        }
+    }
+});
+
+static mp_obj_t jsproxy___del__(mp_obj_t self_in) {
+    mp_obj_jsproxy_t *self = MP_OBJ_TO_PTR(self_in);
+    proxy_js_free_obj(self->ref);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(jsproxy___del___obj, jsproxy___del__);
+
 static mp_obj_t jsproxy_reflect_construct(size_t n_args, const mp_obj_t *args) {
     int arg0 = mp_obj_jsproxy_get_ref(args[0]);
     n_args -= 1;
@@ -242,7 +258,7 @@ static mp_obj_t jsproxy_reflect_construct(size_t n_args, const mp_obj_t *args) {
     for (unsigned int i = 0; i < n_args; ++i) {
         proxy_convert_mp_to_js_obj_cside(args[i], &args_conv[i * PVN]);
     }
-    uint32_t out[3];
+    uint32_t out[PVN];
     js_reflect_construct(arg0, n_args, args_conv, out);
     return proxy_convert_js_to_mp_obj_cside(out);
 }
@@ -274,7 +290,11 @@ void mp_obj_jsproxy_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
     if (dest[0] == MP_OBJ_NULL) {
         // Load attribute.
         uint32_t out[PVN];
-        if (lookup_attr(self->ref, qstr_str(attr), out)) {
+        if (attr == MP_QSTR___del__) {
+            // For finaliser.
+            dest[0] = MP_OBJ_FROM_PTR(&jsproxy___del___obj);
+            dest[1] = self_in;
+        } else if (lookup_attr(self->ref, qstr_str(attr), out)) {
             dest[0] = proxy_convert_js_to_mp_obj_cside(out);
         } else if (attr == MP_QSTR_new) {
             // Special case to handle construction of JS objects.
@@ -300,7 +320,7 @@ void mp_obj_jsproxy_attr(mp_obj_t self_in, qstr attr, mp_obj_t *dest) {
 typedef struct _jsproxy_it_t {
     mp_obj_base_t base;
     mp_fun_1_t iternext;
-    int ref;
+    mp_obj_jsproxy_t *obj;
     uint16_t cur;
     uint16_t len;
 } jsproxy_it_t;
@@ -309,7 +329,7 @@ static mp_obj_t jsproxy_it_iternext(mp_obj_t self_in) {
     jsproxy_it_t *self = MP_OBJ_TO_PTR(self_in);
     if (self->cur < self->len) {
         uint32_t out[3];
-        js_subscr_int(self->ref, self->cur, out);
+        js_subscr_int(self->obj->ref, self->cur, out);
         self->cur += 1;
         return proxy_convert_js_to_mp_obj_cside(out);
     } else {
@@ -323,7 +343,7 @@ static mp_obj_t jsproxy_new_it(mp_obj_t self_in, mp_obj_iter_buf_t *iter_buf) {
     jsproxy_it_t *o = (jsproxy_it_t *)iter_buf;
     o->base.type = &mp_type_polymorph_iter;
     o->iternext = jsproxy_it_iternext;
-    o->ref = self->ref;
+    o->obj = self;
     o->cur = 0;
     o->len = js_get_len(self->ref);
     return MP_OBJ_FROM_PTR(o);
@@ -346,6 +366,12 @@ typedef struct _jsproxy_gen_t {
 
 mp_vm_return_kind_t jsproxy_gen_resume(mp_obj_t self_in, mp_obj_t send_value, mp_obj_t throw_value, mp_obj_t *ret_val) {
     jsproxy_gen_t *self = MP_OBJ_TO_PTR(self_in);
+
+    if (throw_value) {
+        *ret_val = throw_value;
+        return MP_VM_RETURN_EXCEPTION;
+    }
+
     switch (self->state) {
         case JSOBJ_GEN_STATE_WAITING:
             self->state = JSOBJ_GEN_STATE_COMPLETED;
@@ -468,9 +494,29 @@ static mp_obj_t jsproxy_new_gen(mp_obj_t self_in, mp_obj_iter_buf_t *iter_buf) {
 
 /******************************************************************************/
 
+#if MICROPY_PY_ASYNCIO
+extern mp_obj_t mp_asyncio_context;
+#endif
+
 static mp_obj_t jsproxy_getiter(mp_obj_t self_in, mp_obj_iter_buf_t *iter_buf) {
     mp_obj_jsproxy_t *self = MP_OBJ_TO_PTR(self_in);
     if (has_attr(self->ref, "then")) {
+        #if MICROPY_PY_ASYNCIO
+        // When asyncio is running and the caller here is a task, wrap the JavaScript
+        // thenable in a ThenableEvent, and get the task to wait on that event.  This
+        // decouples the task from the thenable and allows cancelling the task.
+        if (mp_asyncio_context != MP_OBJ_NULL) {
+            mp_obj_t cur_task = mp_obj_dict_get(mp_asyncio_context, MP_OBJ_NEW_QSTR(MP_QSTR_cur_task));
+            if (cur_task != mp_const_none) {
+                mp_obj_t thenable_event_class = mp_obj_dict_get(mp_asyncio_context, MP_OBJ_NEW_QSTR(MP_QSTR_ThenableEvent));
+                mp_obj_t thenable_event = mp_call_function_1(thenable_event_class, self_in);
+                mp_obj_t dest[2];
+                mp_load_method(thenable_event, MP_QSTR_wait, dest);
+                mp_obj_t wait_gen = mp_call_method_n_kw(0, 0, dest);
+                return mp_getiter(wait_gen, iter_buf);
+            }
+        }
+        #endif
         return jsproxy_new_gen(self_in, iter_buf);
     } else {
         return jsproxy_new_it(self_in, iter_buf);
@@ -489,7 +535,7 @@ MP_DEFINE_CONST_OBJ_TYPE(
     );
 
 mp_obj_t mp_obj_new_jsproxy(int ref) {
-    mp_obj_jsproxy_t *o = mp_obj_malloc(mp_obj_jsproxy_t, &mp_type_jsproxy);
+    mp_obj_jsproxy_t *o = mp_obj_malloc_with_finaliser(mp_obj_jsproxy_t, &mp_type_jsproxy);
     o->ref = ref;
     return MP_OBJ_FROM_PTR(o);
 }
