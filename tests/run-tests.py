@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+import sysconfig
 import platform
 import argparse
 import inspect
@@ -562,6 +563,7 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
     # These tests don't test slice explicitly but rather use it to perform the test
     misc_slice_tests = (
         "builtin_range",
+        "bytearray1",
         "class_super",
         "containment",
         "errno1",
@@ -572,6 +574,7 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
         "memoryview_gc",
         "object1",
         "python34",
+        "string_format_modulo",
         "struct_endian",
     )
 
@@ -579,13 +582,9 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
     if os.getenv("GITHUB_ACTIONS") == "true":
         skip_tests.add("thread/stress_schedule.py")  # has reliability issues
 
-        if os.getenv("RUNNER_OS") == "Windows":
+        if os.getenv("RUNNER_OS") == "Windows" and os.getenv("CI_BUILD_CONFIGURATION") == "Debug":
             # fails with stack overflow on Debug builds
             skip_tests.add("misc/sys_settrace_features.py")
-
-            if os.getenv("MSYSTEM") is not None:
-                # fails due to wrong path separator
-                skip_tests.add("import/import_file.py")
 
     if upy_float_precision == 0:
         skip_tests.add("extmod/uctypes_le_float.py")
@@ -677,6 +676,12 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
                 "extmod/time_time_ns.py"
             )  # RA fsp rtc function doesn't support nano sec info
         elif args.target == "qemu-arm":
+            skip_tests.add("inlineasm/asmfpaddsub.py")  # requires Cortex-M4
+            skip_tests.add("inlineasm/asmfpcmp.py")
+            skip_tests.add("inlineasm/asmfpldrstr.py")
+            skip_tests.add("inlineasm/asmfpmuldiv.py")
+            skip_tests.add("inlineasm/asmfpsqrt.py")
+        elif args.target == "qemu-riscv":
             skip_tests.add("misc/print_exception.py")  # requires sys stdfiles
         elif args.target == "webassembly":
             skip_tests.add("basics/string_format_modulo.py")  # can't print nulls to stdout
@@ -709,15 +714,14 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
 
     # Some tests use unsupported features on Windows
     if os.name == "nt":
-        skip_tests.add("import/import_file.py")  # works but CPython prints forward slashes
+        if not sysconfig.get_platform().startswith("mingw"):
+            # Works but CPython uses '\' path separator
+            skip_tests.add("import/import_file.py")
 
     # Some tests are known to fail with native emitter
     # Remove them from the below when they work
     if args.emit == "native":
         skip_tests.add("basics/gen_yield_from_close.py")  # require raise_varargs
-        skip_tests.update(
-            {"basics/async_%s.py" % t for t in "with with2 with_break with_return".split()}
-        )  # require async_with
         skip_tests.update(
             {"basics/%s.py" % t for t in "try_reraise try_reraise2".split()}
         )  # require raise_varargs
@@ -729,10 +733,6 @@ def run_tests(pyb, tests, args, result_dir, num_threads=1):
         skip_tests.add("basics/sys_tracebacklimit.py")  # requires traceback info
         skip_tests.add("basics/try_finally_return2.py")  # requires raise_varargs
         skip_tests.add("basics/unboundlocal.py")  # requires checking for unbound local
-        skip_tests.add("extmod/asyncio_event.py")  # unknown issue
-        skip_tests.add("extmod/asyncio_lock.py")  # requires async with
-        skip_tests.add("extmod/asyncio_micropython.py")  # unknown issue
-        skip_tests.add("extmod/asyncio_wait_for.py")  # unknown issue
         skip_tests.add("misc/features.py")  # requires raise_varargs
         skip_tests.add(
             "misc/print_exception.py"
@@ -1047,7 +1047,7 @@ the last matching regex is used:
 
     LOCAL_TARGETS = (
         "unix",
-        "qemu-arm",
+        "qemu-riscv",
         "webassembly",
     )
     EXTERNAL_TARGETS = (
@@ -1057,6 +1057,7 @@ the last matching regex is used:
         "esp32",
         "minimal",
         "nrf",
+        "qemu-arm",
         "renesas-ra",
         "rp2",
     )
@@ -1125,7 +1126,9 @@ the last matching regex is used:
                 test_dirs += ("float", "inlineasm", "ports/renesas-ra")
             elif args.target == "rp2":
                 test_dirs += ("float", "stress", "inlineasm", "thread", "ports/rp2")
-            elif args.target in ("esp8266", "esp32", "minimal", "nrf"):
+            elif args.target == "esp32":
+                test_dirs += ("float", "stress", "thread")
+            elif args.target in ("esp8266", "minimal", "nrf"):
                 test_dirs += ("float",)
             elif args.target == "wipy":
                 # run WiPy tests
@@ -1142,15 +1145,17 @@ the last matching regex is used:
                     "ports/unix",
                 )
             elif args.target == "qemu-arm":
-                if not args.write_exp:
-                    raise ValueError("--target=qemu-arm must be used with --write-exp")
-                # Generate expected output files for qemu run.
-                # This list should match the test_dirs tuple in tinytest-codegen.py.
                 test_dirs += (
                     "float",
                     "inlineasm",
                     "ports/qemu-arm",
                 )
+            elif args.target == "qemu-riscv":
+                if not args.write_exp:
+                    raise ValueError("--target=qemu-riscv must be used with --write-exp")
+                # Generate expected output files for qemu run.
+                # This list should match the test_dirs tuple in tinytest-codegen.py.
+                test_dirs += ("float",)
             elif args.target == "webassembly":
                 test_dirs += ("float", "ports/webassembly")
         else:

@@ -27,9 +27,22 @@
 // This file is never compiled standalone, it's included directly from
 // extmod/modmachine.c via MICROPY_PY_MACHINE_INCLUDEFILE.
 
-// This variable is needed for machine.soft_reset(), but the variable is otherwise unused.
-int pyexec_system_exit = 0;
+#include <stdlib.h>
 
 static void mp_machine_idle(void) {
     // Do nothing.
 }
+
+#if MICROPY_PY_MACHINE_RESET
+
+static void mp_machine_reset(void) {
+    // Exit qemu (via semihosting call).
+    exit(0);
+}
+
+static mp_int_t mp_machine_reset_cause(void) {
+    // Not implemented.
+    return 0;
+}
+
+#endif
