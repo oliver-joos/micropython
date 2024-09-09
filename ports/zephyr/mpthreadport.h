@@ -3,7 +3,9 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2016-2018 Damien P. George
+ * Copyright (c) 2016 Damien P. George on behalf of Pycom Ltd
+ * Copyright (c) 2017 Pycom Limited
+ * Copyright (c) 2024 Daniel Campora on behalf of REMOTE TECH LTD
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,9 +26,17 @@
  * THE SOFTWARE.
  */
 
-#include <stddef.h>
+#ifndef MICROPY_INCLUDED_ZEPHYR_MPTHREADPORT_H
+#define MICROPY_INCLUDED_ZEPHYR_MPTHREADPORT_H
 
-#include "uart.h"
+#include <zephyr/zephyr.h>
 
-#define mp_hal_stdin_rx_chr() (0)
-#define mp_hal_stdout_tx_strn_cooked(s, l) uart_tx_strn((s), (l))
+typedef struct _mp_thread_mutex_t {
+    struct k_sem handle;
+} mp_thread_mutex_t;
+
+void mp_thread_init(void *stack, uint32_t stack_len);
+void mp_thread_gc_others(void);
+void mp_thread_deinit(void);
+
+#endif // MICROPY_INCLUDED_ZEPHYR_MPTHREADPORT_H
