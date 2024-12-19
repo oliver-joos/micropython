@@ -166,6 +166,14 @@ inline static bool usbd_msc_lu_includes_sdcard(void) {
 #define PYB_SDMMC_FLAG_MMC      (0x02)
 #define PYB_SDMMC_FLAG_ACTIVE   (0x04)
 
+// AXI RAM buffer to read/write SDMMC1 with DMA
+#include <stdio.h>
+#define DEBUG_AXI_COPY (0)
+#define MAX_NUM_BLOCKS (128)
+extern uint32_t _axi_start;
+extern uint32_t _axi_end;
+static __attribute__ ((section(".axi_copy"))) uint8_t axi_copy[SDCARD_BLOCK_SIZE * MAX_NUM_BLOCKS];
+
 static uint8_t pyb_sdmmc_flags;
 
 #define TIMEOUT_MS 30000
@@ -575,24 +583,29 @@ int sdcard_read_blocks(uint8_t *dest, uint32_t block_num, uint32_t num_blocks) {
         }
         #endif
 
+        uint8_t *dest_dma = dest;
+        if ((dest < (uint8_t *)&_axi_start) || (dest >= (uint8_t *)&_axi_end)) {
+            dest_dma = axi_copy;
+        }
+
         // make sure cache is flushed and invalidated so when DMA updates the RAM
         // from reading the peripheral the CPU then reads the new data
-        dma_protect_rx_region(dest, num_blocks * SDCARD_BLOCK_SIZE);
+        dma_protect_rx_region(dest_dma, num_blocks * SDCARD_BLOCK_SIZE);
 
         sdcard_reset_periph();
         #if MICROPY_HW_ENABLE_MMCARD
         if (pyb_sdmmc_flags & PYB_SDMMC_FLAG_MMC) {
-            err = HAL_MMC_ReadBlocks_DMA(&sdmmc_handle.mmc, dest, block_num, num_blocks);
+            err = HAL_MMC_ReadBlocks_DMA(&sdmmc_handle.mmc, dest_dma, block_num, num_blocks);
         } else
         #endif
         {
-            err = HAL_SD_ReadBlocks_DMA(&sdmmc_handle.sd, dest, block_num, num_blocks);
+            err = HAL_SD_ReadBlocks_DMA(&sdmmc_handle.sd, dest_dma, block_num, num_blocks);
         }
         if (err == HAL_OK) {
             err = sdcard_wait_finished();
         }
 
-        dma_unprotect_rx_region(dest, num_blocks * SDCARD_BLOCK_SIZE);
+        dma_unprotect_rx_region(dest_dma, num_blocks * SDCARD_BLOCK_SIZE);
 
         #if SDIO_USE_GPDMA
         dma_deinit(&SDMMC_DMA);
@@ -611,6 +624,18 @@ int sdcard_read_blocks(uint8_t *dest, uint32_t block_num, uint32_t num_blocks) {
             restore_irq_pri(basepri);
         }
         #endif
+
+        if (dest != dest_dma) {
+            // copy blocks from AXI RAM to destination memory
+            if (num_blocks > MAX_NUM_BLOCKS) {
+                printf("sdcard_read_blocks():  too many blocks for axi_copy (%d > %d)\n", (int)num_blocks, MAX_NUM_BLOCKS);
+                return 0xff;
+            }
+            #if defined(DEBUG_AXI_COPY) && DEBUG_AXI_COPY != 0
+            printf("sdcard_read_blocks():  memcpy %d block from 0x%08x to 0x%08x\n", (int)num_blocks, (int)dest_dma, (int)dest);
+            #endif
+            memcpy(dest, dest_dma, num_blocks * SDCARD_BLOCK_SIZE);
+        }
     } else {
         #if MICROPY_HW_ENABLE_MMCARD
         if (pyb_sdmmc_flags & PYB_SDMMC_FLAG_MMC) {
@@ -661,6 +686,19 @@ int sdcard_write_blocks(const uint8_t *src, uint32_t block_num, uint32_t num_blo
     HAL_StatusTypeDef err = HAL_OK;
 
     if (query_irq() == IRQ_STATE_ENABLED) {
+        if ((src < (uint8_t *)&_axi_start) || (src >= (uint8_t *)&_axi_end)) {
+            // copy blocks from source memory to AXI RAM
+            if (num_blocks > MAX_NUM_BLOCKS) {
+                printf("sdcard_write_blocks(): too many blocks for axi_copy (%d > %d)\n", (int)num_blocks, MAX_NUM_BLOCKS);
+                return 0xff;
+            }
+            #if defined(DEBUG_AXI_COPY) && DEBUG_AXI_COPY != 0
+            printf("sdcard_write_blocks(): memcpy %d block from 0x%08x to 0x%08x\n", (int)num_blocks, (int)src, (int)axi_copy);
+            #endif
+            memcpy(axi_copy, src, num_blocks * SDCARD_BLOCK_SIZE);
+            src = axi_copy;
+        }
+
         #if MICROPY_HW_USB_MSC
         uint32_t basepri;
         bool usb_msc_sdcard = usbd_msc_lu_includes_sdcard();
