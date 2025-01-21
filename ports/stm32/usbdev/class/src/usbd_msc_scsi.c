@@ -555,7 +555,7 @@ static int8_t SCSI_Write10 (USBD_HandleTypeDef  *pdev, uint8_t lun , uint8_t *pa
       return -1;
     }
 
-    /* Check whether Media is ready */
+    /* Check whether Media is ready
     if(hmsc->bdev_ops->IsReady(lun) !=0 )
     {
       SCSI_SenseCode(pdev,
@@ -564,7 +564,7 @@ static int8_t SCSI_Write10 (USBD_HandleTypeDef  *pdev, uint8_t lun , uint8_t *pa
                      MEDIUM_NOT_PRESENT);
       return -1;
     }
-
+    */
     /* Check If media is write-protected */
     if(hmsc->bdev_ops->IsWriteProtected(lun) !=0 )
     {
