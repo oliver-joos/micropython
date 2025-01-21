@@ -561,7 +561,8 @@ static mp_obj_t pyb_usb_mode(size_t n_args, const mp_obj_t *pos_args, mp_map_t *
                 ) {
                 msc_unit[i] = type;
             } else {
-                mp_raise_ValueError(MP_ERROR_TEXT("unsupported logical unit"));
+                msc_unit[i] = type;
+                // mp_raise_ValueError(MP_ERROR_TEXT("unsupported logical unit"));
             }
         }
     }
