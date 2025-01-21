@@ -92,7 +92,7 @@ static const uint8_t usbd_msc_vpd83[4] = {
 
 static const int8_t usbd_msc_inquiry_data[STANDARD_INQUIRY_DATA_LEN] = \
     "\x00"          // peripheral qualifier; peripheral device type
-    "\x80"          // 0x00 for a fixed drive, 0x80 for a removable drive
+    "\x00"          // 0x00 for a fixed drive, 0x80 for a removable drive
     "\x02"          // version
     "\x02"          // response data format
     "\x1f"          // 0x1f = (STANDARD_INQUIRY_DATA_LEN - 5) = 0x24 - 5
