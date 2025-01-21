@@ -134,10 +134,16 @@ static int lu_ioctl(uint8_t lun, int op, uint32_t *data) {
             default:
                 return -1;
         }
-    #if MICROPY_HW_ENABLE_SDCARD
-    } else if (lu == &pyb_sdcard_type
+    #if MICROPY_HW_ENABLE_SDCARD || MICROPY_HW_ENABLE_MMCARD
+    } else if (
+               #if MICROPY_HW_ENABLE_SDCARD
+               lu == &pyb_sdcard_type
                #if MICROPY_HW_ENABLE_MMCARD
-               || lu == &pyb_mmcard_type
+               ||
+               #endif
+               #endif
+               #if MICROPY_HW_ENABLE_MMCARD
+               lu == &pyb_mmcard_type
                #endif
                ) {
         switch (op) {
