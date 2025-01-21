@@ -261,7 +261,7 @@ void HAL_MMC_MspDeInit(MMC_HandleTypeDef *hsd) {
 bool sdcard_is_present(void) {
     #if MICROPY_HW_ENABLE_MMCARD
     if (pyb_sdmmc_flags & PYB_SDMMC_FLAG_MMC) {
-        return false;
+        return true;
     }
     #endif
     #if defined(MICROPY_HW_SDCARD_DETECT_PIN)
