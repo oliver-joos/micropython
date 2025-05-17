@@ -40,6 +40,7 @@ typedef struct _mp_obj_framebuf_t {
     void *buf;
     uint16_t width, height, stride;
     uint8_t format;
+    uint32_t len;
 } mp_obj_framebuf_t;
 
 #if !MICROPY_ENABLE_DYNRUNTIME
@@ -328,6 +329,7 @@ static mp_obj_t framebuf_make_new_helper(size_t n_args, const mp_obj_t *args_in,
     }
     o->buf_obj = args_in[0];
     o->buf = bufinfo.buf;
+    o->len = bufinfo.len;
     o->width = width;
     o->height = height;
     o->format = format;
@@ -359,6 +361,65 @@ static mp_obj_t framebuf_fill(mp_obj_t self_in, mp_obj_t col_in) {
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(framebuf_fill_obj, framebuf_fill);
+
+static mp_obj_t framebuf_resize(mp_obj_t self_in, mp_obj_t n_width, mp_obj_t n_height) {
+    mp_obj_framebuf_t *self = MP_OBJ_TO_PTR(self_in);
+    mp_int_t width = mp_obj_get_int(n_width);
+    mp_int_t height = mp_obj_get_int(n_height);
+    mp_int_t format = self->format;
+    mp_int_t stride = width;
+
+
+    if (width < 1 || height < 1 || width > 0xffff || height > 0xffff || stride > 0xffff || stride < width) {
+        mp_raise_ValueError(NULL);
+    }
+
+    size_t bpp = 1;
+    size_t height_required = height;
+    size_t width_required = width;
+    size_t strides_required = height - 1;
+
+    switch (format) {
+        case FRAMEBUF_MVLSB:
+            height_required = (height + 7) & ~7;
+            strides_required = height_required - 8;
+            break;
+        case FRAMEBUF_MHLSB:
+        case FRAMEBUF_MHMSB:
+            stride = (stride + 7) & ~7;
+            width_required = (width + 7) & ~7;
+            break;
+        case FRAMEBUF_GS2_HMSB:
+            stride = (stride + 3) & ~3;
+            width_required = (width + 3) & ~3;
+            bpp = 2;
+            break;
+        case FRAMEBUF_GS4_HMSB:
+            stride = (stride + 1) & ~1;
+            width_required = (width + 1) & ~1;
+            bpp = 4;
+            break;
+        case FRAMEBUF_GS8:
+            bpp = 8;
+            break;
+        case FRAMEBUF_RGB565:
+            bpp = 16;
+            break;
+        default:
+            mp_raise_ValueError(MP_ERROR_TEXT("invalid format"));
+    }
+
+    if ((strides_required * stride + (height_required - strides_required) * width_required) * bpp / 8 > self->len) {
+        mp_raise_ValueError(NULL);
+    }
+
+    self->width = width;
+    self->height = height;
+    self->stride = stride;
+
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_3(framebuf_resize_obj, framebuf_resize);
 
 static mp_obj_t framebuf_fill_rect(size_t n_args, const mp_obj_t *args_in) {
     mp_obj_framebuf_t *self = MP_OBJ_TO_PTR(args_in[0]);
@@ -783,6 +844,7 @@ static mp_obj_t framebuf_blit(size_t n_args, const mp_obj_t *args_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(framebuf_blit_obj, 4, 6, framebuf_blit);
 
+
 static mp_obj_t framebuf_scroll(mp_obj_t self_in, mp_obj_t xstep_in, mp_obj_t ystep_in) {
     mp_obj_framebuf_t *self = MP_OBJ_TO_PTR(self_in);
     mp_int_t xstep = mp_obj_get_int(xstep_in);
@@ -868,6 +930,7 @@ static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(framebuf_text_obj, 4, 5, framebuf_tex
 #if !MICROPY_ENABLE_DYNRUNTIME
 static const mp_rom_map_elem_t framebuf_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_fill), MP_ROM_PTR(&framebuf_fill_obj) },
+    { MP_ROM_QSTR(MP_QSTR_resize), MP_ROM_PTR(&framebuf_resize_obj) },
     { MP_ROM_QSTR(MP_QSTR_fill_rect), MP_ROM_PTR(&framebuf_fill_rect_obj) },
     { MP_ROM_QSTR(MP_QSTR_pixel), MP_ROM_PTR(&framebuf_pixel_obj) },
     { MP_ROM_QSTR(MP_QSTR_hline), MP_ROM_PTR(&framebuf_hline_obj) },
