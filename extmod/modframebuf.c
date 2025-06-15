@@ -66,11 +66,29 @@ typedef struct _mp_framebuf_p_t {
 #define FRAMEBUF_MHLSB    (3)
 #define FRAMEBUF_MHMSB    (4)
 
+#define LUMINANCE_THRESHOLD 127
+static int luminance(uint32_t col) {
+
+    int r = ((col >> 11) & 0x1F) << 3; // 5 bits to 8 bits
+    int g = ((col >> 5) & 0x3F) << 2;  // 6 bits to 8 bits
+    int b = (col & 0x1F) << 3;  // 5 bits to 8 bits
+    int lum = (r * 299 + g * 587 + b * 114) / 1000; // 1000
+    if (lum >= LUMINANCE_THRESHOLD) {
+        return 1;
+    } else {
+        return 0;
+    }
+
+}
+
 // Functions for MHLSB and MHMSB
 
 static void mono_horiz_setpixel(const mp_obj_framebuf_t *fb, unsigned int x, unsigned int y, uint32_t col) {
     size_t index = (x + y * fb->stride) >> 3;
     unsigned int offset = fb->format == FRAMEBUF_MHMSB ? x & 0x07 : 7 - (x & 0x07);
+    if (col > 1) {
+        col = luminance(col);
+    }
     ((uint8_t *)fb->buf)[index] = (((uint8_t *)fb->buf)[index] & ~(0x01 << offset)) | ((col != 0) << offset);
 }
 
@@ -99,6 +117,10 @@ static void mono_horiz_fill_rect(const mp_obj_framebuf_t *fb, unsigned int x, un
 static void mvlsb_setpixel(const mp_obj_framebuf_t *fb, unsigned int x, unsigned int y, uint32_t col) {
     size_t index = (y >> 3) * fb->stride + x;
     uint8_t offset = y & 0x07;
+
+    if (col > 1) {
+        col = luminance(col);
+    }
     ((uint8_t *)fb->buf)[index] = (((uint8_t *)fb->buf)[index] & ~(0x01 << offset)) | ((col != 0) << offset);
 }
 
