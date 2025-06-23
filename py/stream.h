@@ -48,6 +48,7 @@
 #if MICROPY_STREAMS_DELEGATE_ERROR
 #define MP_STREAM_RAISE_ERROR       (12) // Raise an error with detailed error string
 #endif
+#define MP_STREAM_TRUNCATE          (13) // Discard data from current position to end
 
 // These poll ioctl values are compatible with Linux
 #define MP_STREAM_POLL_RD       (0x0001)
@@ -96,6 +97,7 @@ MP_DECLARE_CONST_FUN_OBJ_1(mp_stream_close_obj);
 MP_DECLARE_CONST_FUN_OBJ_VAR_BETWEEN(mp_stream___exit___obj);
 MP_DECLARE_CONST_FUN_OBJ_VAR_BETWEEN(mp_stream_seek_obj);
 MP_DECLARE_CONST_FUN_OBJ_1(mp_stream_tell_obj);
+MP_DECLARE_CONST_FUN_OBJ_VAR_BETWEEN(mp_stream_truncate_obj);
 MP_DECLARE_CONST_FUN_OBJ_1(mp_stream_flush_obj);
 MP_DECLARE_CONST_FUN_OBJ_VAR_BETWEEN(mp_stream_ioctl_obj);
 
