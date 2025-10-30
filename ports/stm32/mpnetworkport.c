@@ -48,8 +48,14 @@
 #include "lib/cyw43-driver/src/cyw43.h"
 #endif
 
-// Poll lwIP every 128ms
-#define LWIP_TICK(tick) (((tick) & ~(SYSTICK_DISPATCH_NUM_SLOTS - 1) & 0x7f) == 0)
+// Interval in milliseconds to poll LwIP.
+// This value must be (1 << int)! For boards with 200MHz or more try (1 << 6).
+#ifndef MICROPY_PY_LWIP_POLL_INTERVAL
+#define MICROPY_PY_LWIP_POLL_INTERVAL   (1 << 7)
+#endif
+
+// lwIP poll time check
+#define LWIP_TICK(tick) (((tick) & ~(SYSTICK_DISPATCH_NUM_SLOTS - 1) & (MICROPY_PY_LWIP_POLL_INTERVAL - 1)) == 0)
 
 #if MICROPY_PY_NETWORK_WIZNET5K
 void wiznet5k_poll(void);
