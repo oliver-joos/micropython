@@ -52,15 +52,15 @@ class Stream:
         return r
 
     # async
-    def readline(self):
+    def readline(self, end=10):
         l = b""
         while True:
             yield core._io_queue.queue_read(self.s)
-            l2 = self.s.readline()  # may do multiple reads but won't block
+            l2 = self.s.readline(32, end)  # may do multiple reads but won't block
             if l2 is None:
                 continue
             l += l2
-            if not l2 or l[-1] == 10:  # \n (check l in case l2 is str)
+            if not l2 or l[-1] == end:  # \n (check l in case l2 is str)
                 return l
 
     def write(self, buf):
