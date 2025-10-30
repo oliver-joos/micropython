@@ -1533,6 +1533,7 @@ mp_obj_t mp_import_name(qstr name, mp_obj_t fromlist, mp_obj_t level) {
     if (bo_dict != NULL) {
         mp_map_elem_t *import = mp_map_lookup(&bo_dict->map, MP_OBJ_NEW_QSTR(MP_QSTR___import__), MP_MAP_LOOKUP);
         if (import != NULL) {
+            args[1] = MP_OBJ_FROM_PTR(mp_globals_get()); // assign globals of current context
             return mp_call_function_n_kw(import->value, 5, 0, args);
         }
     }
