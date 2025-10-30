@@ -33,7 +33,13 @@
 #else
 #define FLASH_BLOCK_SIZE (512)
 #endif
+
+#if defined(MICROPY_HW_BDEV_HAS_MBR)
+// For a custom partition table we need to write to the MBR block, so storage must start at block 0
+#define FLASH_PART1_START_BLOCK (0)
+#else
 #define FLASH_PART1_START_BLOCK (0x100)
+#endif
 
 // Try to match Python-level VFS block protocol where possible for these constants
 enum {
