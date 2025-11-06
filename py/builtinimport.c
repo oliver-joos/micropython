@@ -546,17 +546,6 @@ mp_obj_t mp_builtin___import___default(size_t n_args, const mp_obj_t *args) {
     // "from ...foo.bar import baz" --> module_name="foo.bar"
     mp_obj_t module_name_obj = args[0];
 
-    // This is the dict with all global symbols.
-    mp_obj_t globals = mp_const_none;
-    if (n_args >= 2) {
-        globals = args[1];
-    }
-    if (globals == mp_const_none) {
-        globals = MP_OBJ_FROM_PTR(mp_globals_get());
-    } else if (!mp_obj_is_type(globals, &mp_type_dict)) {
-        mp_raise_TypeError(MP_ERROR_TEXT("globals must be dict"));
-    }
-
     // These are the imported names.
     // i.e. "from foo.bar import baz, zap" --> fromtuple=("baz", "zap",)
     // Note: There's a special case on the Unix port, where this is set to mp_const_false which means that it's __main__.
@@ -580,6 +569,15 @@ mp_obj_t mp_builtin___import___default(size_t n_args, const mp_obj_t *args) {
     const char *module_name = mp_obj_str_get_data(module_name_obj, &module_name_len);
 
     if (level != 0) {
+        // This is the dict with all global symbols.
+        mp_obj_t globals = MP_OBJ_FROM_PTR(mp_globals_get());
+        if (n_args >= 2 && args[1] != mp_const_none) {
+            globals = args[1];
+            if (!mp_obj_is_type(globals, &mp_type_dict)) {
+                mp_raise_TypeError(NULL);
+            }
+        }
+
         // Turn "foo.bar" with level=3 into "<current module 3 components>.foo.bar".
         // Current module name is extracted from globals().__name__.
         // module_name is now an absolute module path.
