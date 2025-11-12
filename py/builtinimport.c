@@ -580,6 +580,16 @@ mp_obj_t mp_builtin___import___default(size_t n_args, const mp_obj_t *args) {
 
         // Turn "foo.bar" with level=3 into "<current module 3 components>.foo.bar".
         // Current module name is extracted from globals().__name__.
+        mp_obj_t globals = mp_const_none;
+        if (n_args >= 2) {
+            globals = args[1];
+        }
+        if (globals == mp_const_none) {
+            globals = MP_OBJ_FROM_PTR(mp_globals_get());
+        } else if (!mp_obj_is_type(globals, &mp_type_dict)) {
+            mp_raise_TypeError(MP_ERROR_TEXT("globals must be a dict"));
+        }
+        evaluate_relative_import(level, &module_name, &module_name_len, globals);
         // module_name is now an absolute module path.
         evaluate_relative_import(level, &module_name, &module_name_len, globals);
     }
