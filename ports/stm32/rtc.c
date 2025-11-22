@@ -356,6 +356,9 @@ static HAL_StatusTypeDef PYB_RCC_OscConfig(RCC_OscInitTypeDef *RCC_OscInitStruct
         #endif
 
         // Set the new LSE configuration
+        #if defined(MICROPY_HW_RCC_LSEDRIVE)
+        __HAL_RCC_LSEDRIVE_CONFIG(MICROPY_HW_RCC_LSEDRIVE);
+        #endif
         __HAL_RCC_LSE_CONFIG(RCC_OscInitStruct->LSEState);
     }
 
