@@ -493,6 +493,22 @@ static mp_obj_t extra_coverage(void) {
             mp_obj_print_exception(&mp_plat_print, MP_OBJ_FROM_PTR(nlr.ret_val));
         }
 
+        // mp_obj_get_uint from a non-int object (should raise exception)
+        if (nlr_push(&nlr) == 0) {
+            mp_obj_get_uint(mp_const_none);
+            nlr_pop();
+        } else {
+            mp_obj_print_exception(&mp_plat_print, MP_OBJ_FROM_PTR(nlr.ret_val));
+        }
+
+        // mp_obj_int_get_ll from a non-int object (should raise exception)
+        if (nlr_push(&nlr) == 0) {
+            mp_obj_get_ll(mp_const_none);
+            nlr_pop();
+        } else {
+            mp_obj_print_exception(&mp_plat_print, MP_OBJ_FROM_PTR(nlr.ret_val));
+        }
+
         // call mp_obj_new_exception_args (it's a part of the public C API and not used in the core)
         mp_obj_print_exception(&mp_plat_print, mp_obj_new_exception_args(&mp_type_ValueError, 0, NULL));
     }
