@@ -36,7 +36,7 @@
 // dispatch to the underlying stream interface of an object.
 
 // TODO: should be in mpconfig.h
-#define DEFAULT_BUFFER_SIZE 256
+#define DEFAULT_BUFFER_SIZE 512
 
 static mp_obj_t stream_readall(mp_obj_t self_in);
 
@@ -350,6 +350,15 @@ static mp_obj_t stream_readall(mp_obj_t self_in) {
     }
 }
 
+// #include <stdio.h>      // only for printf() debugging!
+#define CHAR_LF     '\x0a'
+#define CHAR_CR     '\x0d'
+#define CHAR_ESC    '\x1b'
+
+static enum {
+    NOMATCH, AT_LINE, ESC_SEQTYPE, ESC_HEXDIGIT, ESC_DATA, ESC_SEQEND
+} gs_expects = NOMATCH;
+
 // Unbuffered, inefficient implementation of readline() for raw I/O files.
 static mp_obj_t stream_unbuffered_readline(size_t n_args, const mp_obj_t *args) {
     const mp_stream_p_t *stream_p = mp_get_stream(args[0]);
@@ -367,7 +376,7 @@ static mp_obj_t stream_unbuffered_readline(size_t n_args, const mp_obj_t *args) 
     if (max_size != -1) {
         vstr_init(&vstr, max_size);
     } else {
-        vstr_init(&vstr, 16);
+        vstr_init(&vstr, 64);   // TODO: 64 for now, maybe optimized later
     }
 
     while (max_size == -1 || max_size-- != 0) {
@@ -399,10 +408,70 @@ static mp_obj_t stream_unbuffered_readline(size_t n_args, const mp_obj_t *args) 
             vstr_cut_tail_bytes(&vstr, 1);
             break;
         }
-        if (*p == eol) {
-            break;
+
+        if ((char)eol == CHAR_ESC) {
+            // Special GainSpan AT/Esc mode
+            char ch = *p;
+            switch (gs_expects) {
+                case NOMATCH:
+                    if (ch == CHAR_ESC) {
+                        gs_expects = ESC_SEQTYPE;
+                    } else if ((ch >= ' ') && (ch <= '\x7e')) {
+                        gs_expects = AT_LINE;
+                    } else {
+                        vstr.len = 0;               // skip non-printable ASCII (like empty lines)
+                    }
+                    break;
+                case AT_LINE:
+                    if (ch == CHAR_CR) {
+                        gs_expects = NOMATCH;
+                        goto line_ends;             // AT line is complete
+                    } else if (ch == CHAR_ESC) {
+                        // Workaround for GainSpan problem "Esc-interrupts-AT-echo"
+                        vstr.len = 0;
+                        gs_expects = ESC_SEQTYPE;
+                    }
+                    break;
+                case ESC_SEQTYPE:
+                    if ((ch == 'S') || (ch == 'u')) {
+                        gs_expects = ESC_HEXDIGIT;
+                    } else {
+                        vstr.len = 0;
+                        gs_expects = NOMATCH;
+                    }
+                    break;
+                case ESC_HEXDIGIT:
+                    if (((ch >= '0') && (ch <= '9')) || ((ch >= 'a') && (ch <= 'f'))) {
+                        gs_expects = ESC_DATA;
+                    } else {
+                        vstr.len = 0;
+                        gs_expects = NOMATCH;
+                    }
+                    break;
+                case ESC_DATA:
+                    if (ch == CHAR_ESC) {
+                        gs_expects = ESC_SEQEND;
+                    }
+                    break;
+                case ESC_SEQEND:
+                    if (ch == 'E') {
+                        gs_expects = NOMATCH;
+                        goto line_ends;             // Esc sequence is complete
+                    } else if (ch != CHAR_ESC) {
+                        gs_expects = ESC_DATA;
+                    }
+                    // Workaround for GainSpan bug "Incoming-ESC-are-not-escaped":
+                    // only end after ESC-E, stay in SEQEND on multiple ESC
+                    break;
+            }
+        } else {
+            if (*p == eol) {
+                break;
+            }
         }
     }
+line_ends:
+    // printf("=> case %d after \"%s\"\n", gs_expects, vstr.buf);
 
     if (stream_p->is_text) {
         return mp_obj_new_str_from_vstr(&vstr);
@@ -482,6 +551,27 @@ static mp_obj_t stream_tell(mp_obj_t self) {
     return stream_seek(3, args);
 }
 MP_DEFINE_CONST_FUN_OBJ_1(mp_stream_tell_obj, stream_tell);
+
+static mp_obj_t stream_truncate(size_t n_args, const mp_obj_t *args) {
+    const mp_stream_p_t *stream_p = mp_get_stream(args[0]);
+    mp_uint_t size;
+    if (n_args > 1) {
+        mp_int_t arg = mp_obj_get_int(args[1]);
+        if (arg < 0) {
+            mp_raise_OSError(MP_EINVAL);
+        }
+        size = arg;
+    } else {
+        size = mp_obj_get_int(stream_tell(args[0]));
+    }
+    int error;
+    mp_uint_t res = stream_p->ioctl(args[0], MP_STREAM_TRUNCATE, size, &error);
+    if (res == MP_STREAM_ERROR) {
+        mp_raise_OSError(error);
+    }
+    return mp_obj_new_int(size);
+}
+MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mp_stream_truncate_obj, 1, 2, stream_truncate);
 
 static mp_obj_t stream_flush(mp_obj_t self) {
     const mp_stream_p_t *stream_p = mp_get_stream(self);
