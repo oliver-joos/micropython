@@ -404,6 +404,24 @@ static inline void nw_put_le32(uint8_t *buf, uint32_t x) {
     buf[3] = x >> 24;
 }
 
+#if MICROPY_PY_NETWORK_CYW43_FW_LOADER
+static const char *replace_fw_path(const char *fw_path, mp_obj_t new_value) {
+    if (fw_path != NULL) {
+        m_del(char, (char *)fw_path, strlen(fw_path) + 1);
+    }
+    if (new_value == mp_const_none) {
+        return NULL;
+    } else {
+        size_t len;
+        const char *str = mp_obj_str_get_data(new_value, &len);
+        const char *new_path = m_new(char, len + 1);
+        memcpy((void *)new_path, str, len);
+        ((char *)new_path)[len] = '\0';
+        return new_path;
+    }
+}
+#endif
+
 static mp_obj_t network_cyw43_config(size_t n_args, const mp_obj_t *args, mp_map_t *kwargs) {
     network_cyw43_obj_t *self = MP_OBJ_TO_PTR(args[0]);
 
@@ -460,6 +478,26 @@ static mp_obj_t network_cyw43_config(size_t n_args, const mp_obj_t *args, mp_map
                 // TODO: Deprecated. Use network.hostname() instead.
                 return mod_network_hostname(0, NULL);
             }
+            #if MICROPY_PY_NETWORK_CYW43_FW_LOADER
+            case MP_QSTR_wifi_fw: {
+                if (self->cyw->wifi_fw_path == NULL) {
+                    return mp_const_none;
+                }
+                return mp_obj_new_str(self->cyw->wifi_fw_path, strlen(self->cyw->wifi_fw_path));
+            }
+            case MP_QSTR_nvram: {
+                if (self->cyw->nvram_path == NULL) {
+                    return mp_const_none;
+                }
+                return mp_obj_new_str(self->cyw->nvram_path, strlen(self->cyw->nvram_path));
+            }
+            case MP_QSTR_bt_fw: {
+                if (self->cyw->bt_fw_path == NULL) {
+                    return mp_const_none;
+                }
+                return mp_obj_new_str(self->cyw->bt_fw_path, strlen(self->cyw->bt_fw_path));
+            }
+            #endif
             default:
                 mp_raise_ValueError(MP_ERROR_TEXT("unknown config param"));
         }
@@ -545,6 +583,20 @@ static mp_obj_t network_cyw43_config(size_t n_args, const mp_obj_t *args, mp_map
                         mod_network_hostname(1, &e->value);
                         break;
                     }
+                    #if MICROPY_PY_NETWORK_CYW43_FW_LOADER
+                    case MP_QSTR_wifi_fw: {
+                        self->cyw->wifi_fw_path = replace_fw_path(self->cyw->wifi_fw_path, e->value);
+                        break;
+                    }
+                    case MP_QSTR_nvram: {
+                        self->cyw->nvram_path = replace_fw_path(self->cyw->nvram_path, e->value);
+                        break;
+                    }
+                    case MP_QSTR_bt_fw: {
+                        self->cyw->bt_fw_path = replace_fw_path(self->cyw->bt_fw_path, e->value);
+                        break;
+                    }
+                    #endif
                     default:
                         mp_raise_ValueError(MP_ERROR_TEXT("unknown config param"));
                 }
