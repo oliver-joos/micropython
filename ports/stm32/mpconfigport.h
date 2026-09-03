@@ -172,6 +172,7 @@
 #ifndef MICROPY_PY_NETWORK
 #define MICROPY_PY_NETWORK          (1)
 #endif
+
 #ifndef MICROPY_PY_ONEWIRE
 #define MICROPY_PY_ONEWIRE          (1)
 #endif
@@ -185,6 +186,11 @@
 #ifndef MICROPY_PY_NETWORK_PPP_LWIP
 #define MICROPY_PY_NETWORK_PPP_LWIP     (0)
 #endif
+#endif
+
+// runtime firmware loading from filesystem for CYW43 (Murata 1DX/1YN support)
+#ifndef MICROPY_PY_NETWORK_CYW43_FW_LOADER
+#define MICROPY_PY_NETWORK_CYW43_FW_LOADER (0)
 #endif
 
 // fatfs configuration used in ffconf.h
