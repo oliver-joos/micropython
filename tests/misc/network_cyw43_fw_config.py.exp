@@ -1,0 +1,14 @@
+=== Set paths to None ===
+wifi_fw: None
+nvram: None
+bt_fw: None
+=== Set paths to strings ===
+set wifi_fw: '/path/to/fw.bin'
+set nvram: '/path/to/nvram.bin'
+set bt_fw: '/path/to/bt.bin'
+=== Update a path ===
+re-set wifi_fw: '/new/path/fw.bin'
+=== Multi-set test ===
+wifi_fw: '/fw.bin'
+nvram: '/nvram.bin'
+bt_fw: '/bt.bin'
