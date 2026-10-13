@@ -189,6 +189,14 @@
 #endif
 #endif
 
+// Include CYW43 firmware at compile-time or loading from filesystem at runtime (Murata 1DX/1YN support)
+#ifndef MICROPY_PY_NETWORK_CYW43_FW
+#define MICROPY_PY_NETWORK_CYW43_FW (1)
+#endif
+#ifndef MICROPY_PY_NETWORK_CYW43_FW_LOADER
+#define MICROPY_PY_NETWORK_CYW43_FW_LOADER (0)
+#endif
+
 // fatfs configuration used in ffconf.h
 #define MICROPY_FATFS_ENABLE_LFN       (2)
 #define MICROPY_FATFS_LFN_CODE_PAGE    437 /* 1=SFN/ANSI 437=LFN/U.S.(OEM) */
