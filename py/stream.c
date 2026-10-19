@@ -87,6 +87,7 @@ mp_off_t mp_stream_seek(mp_obj_t stream, mp_off_t offset, int whence, int *errco
     seek_s.offset = offset;
     seek_s.whence = whence;
     const mp_stream_p_t *stream_p = mp_get_stream(stream);
+    *errcode = 0;
     mp_uint_t res = stream_p->ioctl(MP_OBJ_FROM_PTR(stream), MP_STREAM_SEEK, (mp_uint_t)(uintptr_t)&seek_s, errcode);
     if (res == MP_STREAM_ERROR) {
         return (mp_off_t)-1;
