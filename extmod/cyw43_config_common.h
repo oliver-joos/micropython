@@ -45,6 +45,7 @@
 #define CYW43_PRINTF(...)               mp_printf(MP_PYTHON_PRINTER, __VA_ARGS__)
 
 #define CYW43_EPERM                     MP_EPERM // Operation not permitted
+#define CYW43_ENOENT                    MP_ENOENT // Firmware not found
 #define CYW43_EIO                       MP_EIO // I/O error
 #define CYW43_EINVAL                    MP_EINVAL // Invalid argument
 #define CYW43_ETIMEDOUT                 MP_ETIMEDOUT // Connection timed out
